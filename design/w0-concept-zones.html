@@ -1,0 +1,375 @@
+<!doctype html>
+<html lang="en-US" data-theme="bayou" data-mode="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ISGH Members – concept "Five Zones, One Community"</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wdth,wght@12..96,75..100,300..800&family=Public+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="tokens/theme.css">
+<style>
+*, *::before, *::after { box-sizing: border-box; }
+body { margin: 0; background: var(--background); color: var(--foreground); font: 400 17px/1.6 var(--font-body); }
+a { color: inherit; text-underline-offset: 3px; }
+:focus-visible { outline: 3px solid var(--ring); outline-offset: 3px; border-radius: 6px; }
+.wrap { width: min(1240px, 100% - 32px); margin-inline: auto; }
+h1, h2, h3 { font-family: var(--font-display); margin: 0; line-height: 1; }
+p { margin: 0; }
+.btn { display: inline-flex; align-items: center; justify-content: center; min-height: 52px; padding: 0 1.6rem; border-radius: var(--radius-pill);
+       font: 600 1rem var(--font-body); text-decoration: none; border: 1.5px solid transparent; cursor: pointer; white-space: nowrap; transition: transform .15s; }
+.btn:active { transform: scale(.97); }
+
+/* ---------- Floating glass nav ---------- */
+.nav { position: fixed; top: 14px; left: 50%; transform: translateX(-50%); z-index: 30; width: min(1240px, 100% - 24px);
+       display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: .55rem .6rem .55rem 1.1rem; border-radius: var(--radius-pill);
+       color: var(--hero-foreground); background: color-mix(in srgb, var(--hero) 45%, transparent);
+       border: 1px solid color-mix(in srgb, var(--hero-foreground) 18%, transparent);
+       backdrop-filter: blur(16px) saturate(1.4); -webkit-backdrop-filter: blur(16px) saturate(1.4);
+       box-shadow: inset 0 1px 0 color-mix(in srgb, var(--hero-foreground) 18%, transparent); transition: background .3s, color .3s; }
+.nav.solid { background: color-mix(in srgb, var(--card) 82%, transparent); color: var(--foreground); border-color: var(--border); }
+.nav .brand { display: flex; align-items: center; gap: .6rem; text-decoration: none; font-family: var(--font-display); font-weight: 800; font-size: 1.15rem; }
+.nav ul { display: flex; gap: .2rem; list-style: none; margin: 0; padding: 0; }
+.nav ul a { display: block; padding: .5rem .9rem; border-radius: var(--radius-pill); text-decoration: none; font-weight: 500; font-size: .96rem; }
+.nav ul a:hover { background: color-mix(in srgb, currentColor 12%, transparent); }
+.nav .actions { display: flex; gap: .4rem; }
+.nav .ghost { color: inherit; border-color: color-mix(in srgb, currentColor 30%, transparent); min-height: 44px; }
+.nav .join { background: var(--hero-accent); color: #1F1606; min-height: 44px; }
+.nav.solid .join { background: var(--primary); color: var(--primary-foreground); }
+@media (max-width: 960px) { .nav ul, .nav .ghost { display: none; } }
+
+/* ---------- Hero: Houston as five zones ---------- */
+.hero { background: var(--hero); color: var(--hero-foreground); position: relative; overflow: hidden; min-height: 100svh; display: grid; align-items: center; }
+.hero::after { content: ""; position: absolute; inset: 0; pointer-events: none; opacity: .06; mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence baseFrequency='.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"); }
+.hero .wrap { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr); gap: 2rem; align-items: center; padding: 7.5rem 0 4rem; position: relative; z-index: 1; }
+.hero h1 { font-size: clamp(2.9rem, 6.6vw, 6rem); font-weight: 700; font-variation-settings: "wdth" 80; letter-spacing: -0.025em; line-height: .95; text-wrap: balance; }
+.hero .lead { color: var(--hero-muted); font-size: 1.22rem; max-width: 36ch; margin-top: 1.6rem; }
+.hero .cta { display: flex; gap: .75rem; flex-wrap: wrap; margin-top: 2.2rem; }
+.hero .cta .primary { background: var(--hero-accent); color: #1F1606; }
+.hero .cta .secondary { color: var(--hero-foreground); border-color: color-mix(in srgb, var(--hero-foreground) 35%, transparent); }
+.hero .cta .secondary:hover { background: color-mix(in srgb, var(--hero-foreground) 10%, transparent); }
+
+.map-wrap { position: relative; aspect-ratio: 1; width: 100%; max-width: 620px; justify-self: center; }
+.map { width: 100%; height: 100%; overflow: visible; }
+.map .ring { fill: none; stroke: var(--hero-foreground); stroke-opacity: .22; stroke-width: 1.2; }
+.map .road { stroke: var(--hero-foreground); stroke-opacity: .12; stroke-width: 1; }
+.map .zone { fill: var(--hero-foreground); fill-opacity: .025; stroke: var(--hero-foreground); stroke-opacity: .18; cursor: pointer; transition: fill-opacity .25s; }
+.map .zone:hover, .map .zone:focus-visible, .map .zone.active { fill-opacity: .11; outline: none; }
+.map .center-dot { color: var(--hero-accent); transition: transform .2s; transform-box: fill-box; transform-origin: center; }
+.map .zone-label { fill: var(--hero-muted); font: 600 13px var(--font-body); pointer-events: none; }
+.zone-info { position: absolute; left: 0; top: 4%; font-size: .95rem; color: var(--hero-muted); max-width: 230px; }
+.zone-info b { display: block; color: var(--hero-foreground); font-family: var(--font-display); font-size: 1.5rem; font-weight: 700; }
+
+/* Liquid-glass member card */
+.glass-card { position: absolute; right: -2%; bottom: 2%; width: min(340px, 78%); aspect-ratio: 1.586; border-radius: 22px; padding: 1.1rem 1.25rem;
+  color: var(--hero-foreground); display: flex; flex-direction: column; justify-content: space-between;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--hero-foreground) 20%, transparent), color-mix(in srgb, var(--hero-foreground) 6%, transparent));
+  border: 1px solid color-mix(in srgb, var(--hero-foreground) 30%, transparent);
+  backdrop-filter: blur(14px) saturate(1.5); -webkit-backdrop-filter: blur(14px) saturate(1.5);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--hero-foreground) 40%, transparent), 0 30px 60px -30px #000a; overflow: hidden; }
+.glass-card::before { content: ""; position: absolute; inset: -40% -10% auto auto; width: 70%; height: 90%; border-radius: 50%;
+  background: radial-gradient(closest-side, color-mix(in srgb, var(--hero-foreground) 28%, transparent), transparent); pointer-events: none; }
+.glass-card .row { display: flex; justify-content: space-between; align-items: start; position: relative; }
+.glass-card .tag { background: var(--hero-accent); color: #1F1606; font-size: .75rem; font-weight: 700; padding: .25rem .65rem; border-radius: var(--radius-pill); }
+.glass-card .name { font-family: var(--font-display); font-weight: 700; font-size: 1.45rem; position: relative; }
+.glass-card .meta { display: flex; gap: 1rem; white-space: nowrap; font-size: .8rem; position: relative; }
+.glass-card .meta span { display: block; color: var(--hero-muted); font-size: .7rem; }
+@media (max-width: 960px) {
+  .hero .wrap { grid-template-columns: 1fr; padding-top: 6.5rem; }
+  .map-wrap { max-width: 460px; aspect-ratio: auto; }
+  .map { height: auto; aspect-ratio: 1; display: block; }
+  .zone-info { position: static; max-width: none; margin-bottom: .5rem; }
+  .glass-card { position: relative; right: auto; bottom: auto; margin: -24% 0 0 auto; }
+}
+
+/* Load sequence: rings draw, then centers appear */
+@media (prefers-reduced-motion: no-preference) {
+  .map .ring { stroke-dasharray: 1800; stroke-dashoffset: 1800; animation: draw 1.6s cubic-bezier(.6,0,.2,1) forwards; }
+  .map .ring:nth-of-type(2) { animation-delay: .2s; } .map .ring:nth-of-type(3) { animation-delay: .4s; }
+  .map .center-dot { opacity: 0; animation: pop .5s cubic-bezier(.2,1.4,.4,1) forwards; }
+  .glass-card { animation: rise 1s cubic-bezier(.2,.8,.2,1) both 1s; }
+  @keyframes draw { to { stroke-dashoffset: 0; } }
+  @keyframes pop { from { opacity: 0; transform: scale(.2); } to { opacity: 1; transform: scale(1); } }
+  @keyframes rise { from { opacity: 0; transform: translateY(30px); } to { opacity: 1; transform: none; } }
+}
+
+/* ---------- Bento ---------- */
+.bento-sec { padding: 5.5rem 0 4.5rem; }
+.sec-title { font-size: clamp(2rem, 4.2vw, 3.4rem); font-weight: 700; font-variation-settings: "wdth" 85; letter-spacing: -0.02em; max-width: 18ch; margin-bottom: 2.4rem; }
+.bento { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); grid-auto-rows: minmax(150px, auto); gap: 14px; }
+.tile { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 1.6rem; position: relative; overflow: hidden; display: flex; flex-direction: column; gap: .9rem; }
+.tile h3 { font-size: 1.35rem; font-weight: 700; }
+.tile .sub { color: var(--muted-foreground); font-size: .98rem; }
+.t-deadline { grid-column: span 3; grid-row: span 2; background: var(--primary); color: var(--primary-foreground); border: 0; justify-content: space-between; }
+.t-deadline .big { font-family: var(--font-display); font-weight: 800; font-variation-settings: "wdth" 75; font-size: clamp(6rem, 13vw, 11rem); line-height: .8; letter-spacing: -0.04em; }
+.t-deadline .sub { color: inherit; opacity: .85; max-width: 32ch; font-size: 1.05rem; }
+.yearbar { height: 10px; border-radius: 99px; background: color-mix(in srgb, var(--primary-foreground) 22%, transparent); overflow: hidden; }
+.yearbar i { display: block; height: 100%; width: 0; background: var(--highlight); border-radius: inherit; }
+.yearlabels { display: flex; justify-content: space-between; font-size: .8rem; opacity: .85; margin-top: .4rem; }
+.t-plans { grid-column: span 3; grid-row: span 2; }
+.seg { display: inline-flex; padding: 4px; gap: 4px; background: var(--muted); border-radius: var(--radius-pill); align-self: start; }
+.seg button { border: 0; background: transparent; color: var(--muted-foreground); font: 600 .95rem var(--font-body); padding: .55rem 1.1rem; border-radius: var(--radius-pill); cursor: pointer; }
+.seg button[aria-selected="true"] { background: var(--card); color: var(--foreground); box-shadow: 0 1px 3px #0002; }
+.price { font-family: var(--font-display); font-weight: 800; font-variation-settings: "wdth" 80; font-size: clamp(3.6rem, 7vw, 5.4rem); line-height: 1; letter-spacing: -0.03em; }
+.price small { font: 500 1.05rem var(--font-body); color: var(--muted-foreground); letter-spacing: 0; }
+.perks { list-style: none; padding: 0; margin: 0; display: grid; gap: .45rem; }
+.perks li { display: flex; gap: .6rem; align-items: baseline; }
+.perks li::before { content: ""; width: 8px; height: 8px; flex: none; transform: rotate(45deg); background: var(--primary); border-radius: 1px; position: relative; top: -1px; }
+.t-plans .btn { background: var(--primary); color: var(--primary-foreground); margin-top: auto; align-self: start; }
+.t-card, .t-find, .t-check { grid-column: span 2; }
+.mini-cards { position: relative; height: 120px; margin-top: auto; }
+.mini-cards div { position: absolute; width: 170px; height: 107px; border-radius: 14px; background: var(--hero); left: 50%; top: 10px; box-shadow: 0 10px 24px -12px #0008; }
+.mini-cards div:nth-child(1) { transform: translateX(-80%) rotate(-10deg); opacity: .55; }
+.mini-cards div:nth-child(2) { transform: translateX(-20%) rotate(8deg); opacity: .75; }
+.mini-cards div:nth-child(3) { transform: translateX(-50%); background: var(--primary); }
+.mini-cards div:nth-child(3)::after { content: "Wallet ready"; position: absolute; left: 12px; bottom: 10px; color: var(--primary-foreground); font: 600 .78rem var(--font-body); }
+.t-find form { display: flex; gap: .5rem; margin-top: auto; }
+.t-find input { flex: 1; min-width: 0; min-height: 48px; border-radius: var(--radius-pill); border: 1.5px solid var(--input); background: var(--background); color: var(--foreground); padding: 0 1rem; font: inherit; }
+.t-find button { min-height: 48px; border-radius: var(--radius-pill); border: 0; background: var(--foreground); color: var(--background); font: 600 .95rem var(--font-body); padding: 0 1.1rem; cursor: pointer; }
+.t-find .result { font-size: .9rem; color: var(--muted-foreground); min-height: 1.4em; }
+.t-check ul { list-style: none; padding: 0; margin: auto 0 0; display: grid; gap: .5rem; font-size: .95rem; }
+.t-check li { display: flex; justify-content: space-between; gap: .5rem; padding: .5rem .7rem; background: var(--muted); border-radius: var(--radius); }
+.t-check li b { font-weight: 600; }
+.ok { color: var(--success); } .wait { color: var(--warning); } .no { color: var(--destructive); }
+.t-news { grid-column: span 6; display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1.2rem; align-items: stretch; }
+.t-news > div:first-child { display: flex; flex-direction: column; justify-content: space-between; gap: 1rem; }
+.post { border-radius: var(--radius); background: var(--muted); padding: 1.2rem; display: flex; flex-direction: column; gap: .5rem; text-decoration: none; }
+.post:hover { background: var(--secondary); }
+.post time { font-size: .85rem; color: var(--muted-foreground); }
+.post strong { font-family: var(--font-display); font-size: 1.2rem; line-height: 1.2; }
+@media (max-width: 960px) {
+  .bento { grid-template-columns: 1fr 1fr; }
+  .t-deadline, .t-plans, .t-news { grid-column: span 2; }
+  .t-card, .t-find, .t-check { grid-column: span 2; }
+  .t-news { grid-template-columns: 1fr; }
+}
+@media (min-width: 640px) and (max-width: 960px) { .t-card, .t-find { grid-column: span 1; } }
+
+/* ---------- Journey (a real sequence) ---------- */
+.journey { padding: 2rem 0 6rem; }
+.track { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; list-style: none; padding: 0; margin: 0; position: relative; counter-reset: j; }
+.track::before { content: ""; position: absolute; left: 22px; right: 22px; top: 22px; height: 2px; background: linear-gradient(90deg, var(--primary), var(--highlight)); }
+.track li { position: relative; counter-increment: j; padding-top: 64px; }
+.track li::before { content: counter(j); position: absolute; top: 0; left: 0; width: 46px; height: 46px; border-radius: 50%; display: grid; place-items: center;
+  background: var(--background); border: 2px solid var(--primary); color: var(--primary); font: 800 1.1rem var(--font-display); }
+.track h3 { font-size: 1.2rem; margin-bottom: .4rem; }
+.track p { color: var(--muted-foreground); font-size: .97rem; }
+@media (max-width: 800px) {
+  .track { grid-template-columns: 1fr; gap: 1.6rem; }
+  .track::before { left: 22px; right: auto; top: 22px; bottom: 22px; width: 2px; height: auto; background: linear-gradient(180deg, var(--primary), var(--highlight)); }
+  .track li { padding: 0 0 0 66px; min-height: 46px; }
+}
+
+/* ---------- Footer with oversized wordmark ---------- */
+footer { background: var(--hero); color: var(--hero-muted); padding: 4rem 0 0; overflow: hidden; }
+footer .cols { display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap: 2rem; font-size: .95rem; }
+footer h4 { color: var(--hero-foreground); margin: 0 0 .7rem; font: 600 1rem var(--font-body); }
+footer ul { list-style: none; margin: 0; padding: 0; display: grid; gap: .4rem; }
+footer a { color: var(--hero-muted); text-decoration: none; } footer a:hover { color: var(--hero-foreground); }
+.wordmark { font-family: var(--font-display); font-weight: 800; font-variation-settings: "wdth" 75; font-size: clamp(4rem, 19vw, 17rem); line-height: .78;
+  letter-spacing: -0.05em; color: var(--hero-foreground); opacity: .1; margin-top: 3rem; white-space: nowrap; }
+@media (max-width: 800px) { footer .cols { grid-template-columns: 1fr 1fr; } }
+
+/* ---------- Review control (not part of site) ---------- */
+.review { position: fixed; left: 16px; bottom: 16px; z-index: 40; background: var(--card); color: var(--foreground); border: 1px solid var(--border); border-radius: var(--radius-lg);
+          padding: .7rem .9rem; box-shadow: 0 18px 40px -18px #0007; font-size: .85rem; max-width: 300px; }
+.review summary { cursor: pointer; font-weight: 700; }
+.review .row { display: flex; gap: .35rem; flex-wrap: wrap; margin-top: .5rem; }
+.review button { font: 600 .8rem var(--font-body); padding: .35rem .65rem; border-radius: var(--radius-pill); border: 1.5px solid var(--border); background: var(--background); color: var(--foreground); cursor: pointer; }
+.review button[aria-pressed="true"] { background: var(--primary); color: var(--primary-foreground); border-color: var(--primary); }
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+  <symbol id="star8" viewBox="0 0 100 100"><g fill="currentColor"><rect x="22" y="22" width="56" height="56"/><rect x="22" y="22" width="56" height="56" transform="rotate(45 50 50)"/></g></symbol>
+</defs></svg>
+
+<nav class="nav" id="nav" aria-label="Main">
+  <a class="brand" href="#"><svg width="28" height="28" aria-hidden="true" style="color:var(--hero-accent)"><use href="#star8"/></svg>ISGH Members</a>
+  <ul><li><a href="#">Membership</a></li><li><a href="#">Islamic Centers</a></li><li><a href="#">Elections</a></li><li><a href="#">News</a></li><li><a href="#">About</a></li></ul>
+  <div class="actions"><a class="btn ghost" href="#">Sign in</a><a class="btn join" href="#">Join ISGH</a></div>
+</nav>
+
+<header class="hero">
+  <div class="wrap">
+    <div>
+      <h1>Five zones. Twenty-two masajid. One membership.</h1>
+      <p class="lead">Your dues keep every Islamic Center in Greater Houston open, and your membership gives you a vote in how ISGH is run.</p>
+      <div class="cta"><a class="btn primary" href="#plans">Become a member</a><a class="btn secondary" href="#">Renew for 2027</a></div>
+    </div>
+    <div class="map-wrap">
+      <div class="zone-info" id="zoneInfo" aria-live="polite"><b>Greater Houston</b>Hover or tap a zone to see its Islamic Centers.</div>
+      <svg class="map" id="map" viewBox="0 0 600 600" role="img" aria-label="Stylized map of Greater Houston divided into five ISGH zones">
+        <g id="zones"></g>
+        <circle class="ring" cx="300" cy="300" r="78"/><circle class="ring" cx="300" cy="300" r="165"/><circle class="ring" cx="300" cy="300" r="262"/>
+        <g id="roads"></g><g id="centers"></g><g id="labels"></g>
+      </svg>
+      <div class="glass-card" aria-label="Sample digital member card">
+        <div class="row"><svg width="30" height="30" aria-hidden="true" style="color:var(--hero-accent)"><use href="#star8"/></svg><span class="tag">Voting eligible</span></div>
+        <div class="name">Aisha Rahman</div>
+        <div class="meta"><div><span>Member ID</span>HOU-204781</div><div><span>Center</span>Champions</div><div><span>Valid through</span>12/31/2027</div></div>
+      </div>
+    </div>
+  </div>
+</header>
+
+<main>
+  <section class="bento-sec" id="plans" aria-labelledby="bento-h">
+    <div class="wrap">
+      <h2 class="sec-title" id="bento-h">Everything about your membership, in one place.</h2>
+      <div class="bento">
+        <article class="tile t-deadline">
+          <div><h3>Days left to keep your vote</h3></div>
+          <div class="big" id="days">260</div>
+          <div>
+            <p class="sub">Pay your 2027 dues by June 30, 2027 to vote in the December elections.</p>
+            <div style="margin-top:1rem"><div class="yearbar"><i id="yearbar"></i></div><div class="yearlabels"><span>Time left this cycle</span><span id="dl">June 30</span></div></div>
+          </div>
+        </article>
+
+        <article class="tile t-plans">
+          <h3>Pick a plan</h3>
+          <div class="seg" role="tablist" aria-label="Membership plans">
+            <button role="tab" aria-selected="false" data-plan="single">Single</button>
+            <button role="tab" aria-selected="true" data-plan="family">Family</button>
+            <button role="tab" aria-selected="false" data-plan="life">Life</button>
+          </div>
+          <div class="price" id="price">$40 <small>per year</small></div>
+          <ul class="perks" id="perks"></ul>
+          <a class="btn" id="planBtn" href="#">Choose family</a>
+        </article>
+
+        <article class="tile t-card"><h3>Your card, on your phone</h3><p class="sub">Add it to Apple Wallet or Google Wallet. Works offline at any center.</p>
+          <div class="mini-cards" aria-hidden="true"><div></div><div></div><div></div></div></article>
+
+        <article class="tile t-find"><h3>Find your Islamic Center</h3><p class="sub">Your home address decides your zone and center.</p>
+          <form id="findForm"><label for="zip" class="sr" style="position:absolute;left:-9999px">ZIP code</label><input id="zip" inputmode="numeric" maxlength="5" placeholder="ZIP code, like 77036" autocomplete="postal-code"><button>Find</button></form>
+          <p class="result" id="findResult" aria-live="polite"></p></article>
+
+        <article class="tile t-check"><h3>Know where you stand</h3>
+          <ul><li><b>Approved</b><span class="ok">Done</span></li><li><b>ID check</b><span class="wait">In review</span></li><li><b>2027 dues</b><span class="no">Not paid</span></li></ul></article>
+
+        <article class="tile t-news">
+          <div><h3>News from ISGH</h3><p class="sub">Updates from the Board, the centers and the election commission.</p><a href="#" style="font-weight:600">All news</a></div>
+          <a class="post" href="#"><time datetime="2026-10-08">October 8, 2026</time><strong>Nominations open for the 2026 Board elections</strong><span class="sub">Who can run, key dates, and how to apply.</span></a>
+          <a class="post" href="#"><time datetime="2026-09-29">September 29, 2026</time><strong>New weekend school opens in the North zone</strong><span class="sub">Classes start in November for ages 5 to 14.</span></a>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <section class="journey" aria-labelledby="j-h">
+    <div class="wrap">
+      <h2 class="sec-title" id="j-h">Join in about five minutes.</h2>
+      <ol class="track">
+        <li><h3>Verify your email</h3><p>We send a 6-digit code. No password needed.</p></li>
+        <li><h3>Add your address</h3><p>We match you to your zone and Islamic Center.</p></li>
+        <li><h3>Choose and pay</h3><p>Card, Apple Pay or Google Pay. Receipt by email.</p></li>
+        <li><h3>Get approved</h3><p>Follow each step and see exactly what's needed to vote.</p></li>
+      </ol>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <div class="cols">
+      <div><h4>Islamic Society of Greater Houston</h4><p>3110 Eastside St<br>Houston, TX 77098<br>(713) 524-6615 ext. 105</p></div>
+      <div><h4>Membership</h4><ul><li><a href="#">Join</a></li><li><a href="#">Renew</a></li><li><a href="#">Check my status</a></li></ul></div>
+      <div><h4>Community</h4><ul><li><a href="#">Islamic Centers</a></li><li><a href="#">Elections</a></li><li><a href="#">News</a></li></ul></div>
+      <div><h4>Help</h4><ul><li><a href="#">FAQ</a></li><li><a href="#">Contact</a></li><li><a href="#">Privacy</a></li></ul></div>
+    </div>
+    <div class="wordmark" aria-hidden="true">ISGH Members</div>
+  </div>
+</footer>
+
+<details class="review" open><summary>Theme preview (review only)</summary>
+  <div class="row" id="themes"></div>
+  <div class="row"><button data-m="light">Light</button><button data-m="dark">Dark</button></div>
+</details>
+
+<script>
+/* ----- Map: five zones as wedges converging on central Houston (stylized, not to scale) ----- */
+const C = 300, R = 285, NS = 'http://www.w3.org/2000/svg';
+const zones = [ // angles in degrees, 0 = east, clockwise (screen coords). Sample center counts – real data from admin later.
+  { id: 'se', name: 'Southeast zone', from: -60, to: 55, n: 5 },
+  { id: 's',  name: 'South zone',     from: 55,  to: 112, n: 3 },
+  { id: 'sw', name: 'Southwest zone', from: 112, to: 165, n: 4 },
+  { id: 'nw', name: 'Northwest zone', from: 165, to: 228, n: 5 },
+  { id: 'n',  name: 'North zone',     from: 228, to: 300, n: 5 },
+];
+const pt = (deg, r) => { const a = deg * Math.PI / 180; return [C + r * Math.cos(a), C + r * Math.sin(a)]; };
+const el = (tag, attrs) => { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); return e; };
+let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+const gZ = document.getElementById('zones'), gC = document.getElementById('centers'), gL = document.getElementById('labels'), gR = document.getElementById('roads');
+[18, 62, 100, 145, 192, 238, 262, 285, 330].forEach(a => { const [x, y] = pt(a, 295), [x0, y0] = pt(a, 20); gR.appendChild(el('line', { class: 'road', x1: x0, y1: y0, x2: x, y2: y })); });
+let delay = 1.1;
+const info = document.getElementById('zoneInfo');
+zones.forEach(z => {
+  const [x1, y1] = pt(z.from, R), [x2, y2] = pt(z.to, R), large = (z.to - z.from) > 180 ? 1 : 0;
+  const p = el('path', { class: 'zone', d: `M${C},${C} L${x1},${y1} A${R},${R} 0 ${large} 1 ${x2},${y2} Z`, tabindex: 0, role: 'button', 'aria-label': `${z.name}, ${z.n} Islamic Centers` });
+  const show = () => { document.querySelectorAll('.zone').forEach(q => q.classList.remove('active')); p.classList.add('active'); info.innerHTML = `<b>${z.name.replace(' zone', '')}</b>${z.n} Islamic Centers in this zone (sample)`; };
+  p.addEventListener('mouseenter', show); p.addEventListener('focus', show); p.addEventListener('click', show);
+  gZ.appendChild(p);
+  const mid = (z.from + z.to) / 2, [lx, ly] = pt(mid, 214);
+  const t = el('text', { class: 'zone-label', x: lx, y: ly, 'text-anchor': 'middle' }); t.textContent = z.name.replace(' zone', ''); gL.appendChild(t);
+  for (let i = 0; i < z.n; i++) {
+    const a = z.from + 8 + rnd() * (z.to - z.from - 16), r = 60 + rnd() * 190, [x, y] = pt(a, r), s = 16;
+    const u = el('use', { href: '#star8', x: x - s / 2, y: y - s / 2, width: s, height: s, class: 'center-dot' });
+    u.style.animationDelay = (delay += 0.05).toFixed(2) + 's'; gC.appendChild(u);
+  }
+});
+document.querySelector('.hero').addEventListener('mouseleave', () => { document.querySelectorAll('.zone').forEach(q => q.classList.remove('active')); info.innerHTML = '<b>Greater Houston</b>Hover or tap a zone to see its Islamic Centers.'; });
+
+/* ----- Deadline (Central Time) ----- */
+(() => {
+  const now = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Chicago' }));
+  let y = now.getFullYear(), d = new Date(y, 5, 30, 23, 59, 59); if (now > d) d = new Date(++y, 5, 30, 23, 59, 59);
+  document.getElementById('days').textContent = Math.ceil((d - now) / 864e5);
+  const left = Math.ceil((d - now) / 864e5);
+  document.getElementById('yearbar').style.width = Math.max(2, Math.min(100, left / 365 * 100)) + '%';
+  document.getElementById('dl').textContent = d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+})();
+
+/* ----- Plans (values will come from admin settings) ----- */
+const plans = {
+  single: { price: '$25', unit: 'per year', perks: ['One adult member', 'A vote in ISGH elections', 'Member rates on programs'], cta: 'Choose single' },
+  family: { price: '$40', unit: 'per year', perks: ['You and your spouse', 'A vote for each of you', 'One renewal for both'], cta: 'Choose family' },
+  life:   { price: '$1,000', unit: 'one time', perks: ['Never renew again', 'Supports all 22 centers', 'Other voting rules still apply'], cta: 'Choose life' },
+};
+function setPlan(k) {
+  document.querySelectorAll('.seg button').forEach(b => b.setAttribute('aria-selected', String(b.dataset.plan === k)));
+  const p = plans[k];
+  document.getElementById('price').innerHTML = `${p.price} <small>${p.unit}</small>`;
+  document.getElementById('perks').innerHTML = p.perks.map(x => `<li>${x}</li>`).join('');
+  document.getElementById('planBtn').textContent = p.cta;
+}
+document.querySelectorAll('.seg button').forEach(b => b.onclick = () => setPlan(b.dataset.plan));
+setPlan('family');
+
+/* ----- ZIP demo ----- */
+document.getElementById('findForm').addEventListener('submit', e => {
+  e.preventDefault(); const v = document.getElementById('zip').value.trim(), r = document.getElementById('findResult');
+  r.textContent = /^\d{5}$/.test(v) ? `ZIP ${v}: we'll confirm your exact center from your street address.` : 'Enter a 5-digit ZIP code, like 77036.';
+});
+
+/* ----- Nav turns solid after the hero ----- */
+const nav = document.getElementById('nav'), hero = document.querySelector('.hero');
+new IntersectionObserver(([e]) => nav.classList.toggle('solid', !e.isIntersecting), { rootMargin: '-80px 0px 0px 0px' }).observe(hero);
+
+/* ----- Review control ----- */
+const root = document.documentElement, store = { get(k) { try { return localStorage.getItem(k); } catch { return null; } }, set(k, v) { try { localStorage.setItem(k, v); } catch {} } };
+const T = { bayou: 'Bayou', iznik: 'Iznik', dusk: 'Dusk' }, box = document.getElementById('themes');
+function apply(t, m) {
+  if (t) { root.dataset.theme = t; store.set('c-theme', t); } if (m) { root.dataset.mode = m; store.set('c-mode', m); }
+  document.querySelectorAll('.review button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.t === root.dataset.theme || b.dataset.m === root.dataset.mode)));
+}
+Object.entries(T).forEach(([k, v]) => { const b = document.createElement('button'); b.textContent = v; b.dataset.t = k; b.onclick = () => apply(k); box.appendChild(b); });
+document.querySelectorAll('[data-m]').forEach(b => b.onclick = () => apply(null, b.dataset.m));
+const q = new URLSearchParams(location.search);
+if (matchMedia('(max-width: 600px)').matches) document.querySelector('.review').open = false;
+apply(q.get('theme') || store.get('c-theme') || 'bayou', q.get('mode') || store.get('c-mode') || 'light');
+</script>
+</body>
+</html>

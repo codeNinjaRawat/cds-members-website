@@ -1,0 +1,22 @@
+✔ No JS errors on home and inner pages 
+✔ No horizontal scroll at 1280px 
+✔ No horizontal scroll at 768px 
+✔ No horizontal scroll at 390px 
+✔ No horizontal scroll at 320px 
+✔ Skip link is first focusable and becomes visible, moves focus to main 
+✔ Dropdown: Enter opens, ArrowDown moves into links, Escape closes and returns focus 
+✔ Dropdown: only one open at a time; outside click closes 
+✔ Mobile menu: opens as modal, traps focus, Escape closes and restores focus, body scroll locked 
+✔ Mobile menu accordion expands sub-links 
+✔ Header: glass over hero, solid after scrolling past hero 
+✔ Inner page marks current nav item (aria-current) 
+✔ Announcement: dismiss hides it and remembers across reloads 
+✔ Announcement: hidden when admin flag is off, and when outside its date window 
+✔ Newsletter: rejects bad email, requires consent, then confirms 
+✔ Newsletter hidden when admin flag is off 
+✔ Theme toggle cycles system → light → dark and persists 
+✔ All three themes render header and footer in light and dark (no errors) 
+✔ Every image-free control has an accessible name 
+✔ Touch targets in header are at least 40px 
+
+20/20 passed

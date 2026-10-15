@@ -1,0 +1,22 @@
+/**
+ * POST /api/auth/otp/start – send a 6-digit code by email (or SMS when enabled).
+ * Real: BE POST /public/auth/otp/start (rate-limited per email/IP, code hashed, expires, email gateway).
+ * Mock: no message is sent; the code is always 123456 and returned as devCode so the flow can be tested.
+ */
+import { NextResponse } from 'next/server';
+import { z } from 'zod';
+import { apiConfig, apiPost } from '@/lib/api/client';
+
+const Body = z.object({ email: z.string().trim().toLowerCase().email().max(254), channel: z.enum(['email', 'sms']).default('email') });
+
+export async function POST(req: Request) {
+  const parsed = Body.safeParse(await req.json().catch(() => null));
+  if (!parsed.success) return NextResponse.json({ error: 'invalid_email' }, { status: 422 });
+  if (apiConfig.useMock) return NextResponse.json({ sent: true, devCode: '123456' });
+  try {
+    await apiPost('/public/auth/otp/start', parsed.data);
+    return NextResponse.json({ sent: true });
+  } catch {
+    return NextResponse.json({ error: 'unavailable' }, { status: 503 });
+  }
+}

@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <style>
+    .star { fill: #0F4C4A } .arch { fill: #F6EFD9 } .inner { fill: #C8A24A }
+    @media (prefers-color-scheme: dark) { .star { fill: #5CCDA3 } .arch { fill: #0B1613 } .inner { fill: #F1BA4A } }
+  </style>
+  <g class="star"><rect x="19" y="19" width="62" height="62" rx="4"/><rect x="19" y="19" width="62" height="62" rx="4" transform="rotate(45 50 50)"/></g>
+  <path class="arch" d="M39 70 V50 Q39 35 50 28 Q61 35 61 50 V70 Z"/>
+  <path class="inner" d="M45 70 V55 Q45 47 50 43 Q55 47 55 55 V70 Z"/>
+</svg>

@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en-US" data-theme="bayou">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wdth,wght@12..96,75..100,300..800&family=Public+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../tokens/theme.css"><link rel="stylesheet" href="assets/base.css"><link rel="stylesheet" href="assets/layout.css"><link rel="stylesheet" href="assets/review.css">
+<script src="content/site.js"></script><script src="assets/review.js"></script>
+<title>ISGH Members – W1 layout (home, header over hero)</title>
+<style>
+  .demo-hero { background: var(--hero); color: var(--hero-foreground); min-height: 78svh; display: grid; align-items: end; padding: 9rem 0 4rem; }
+  .demo-hero h1 { font-size: clamp(2.6rem, 6vw, 5.2rem); font-weight: 700; font-variation-settings: "wdth" 80; max-width: 14ch; line-height: .95; letter-spacing: -.025em; }
+  .demo-hero p { color: var(--hero-muted); margin-top: 1rem; max-width: 46ch; }
+  .filler { padding: 4rem 0; } .filler p { max-width: 62ch; color: var(--muted-foreground); margin-top: .8rem; }
+  .filler h2 { font-size: 2rem; }
+  main:focus { outline: none; }
+</style>
+</head>
+<body>
+<a class="skip-link" href="#main">Skip to main content</a>
+<div id="announcement"></div>
+<div id="site-header" data-variant="over-hero"></div>
+<main id="main" tabindex="-1">
+  <section class="demo-hero" data-hero><div class="wrap"><h1>Hero area – built in module W2.</h1><p>This page shows module W1 only: announcement bar, header with menus, mobile menu and footer. The header floats as glass over the hero, then turns solid when you scroll.</p></div></section>
+  <section class="filler"><div class="wrap"><h2>Page content</h2><p>Scroll to see the header change. Try the keyboard: press Tab to reveal "Skip to main content", open the Membership menu with Enter or the down arrow, move with the arrow keys, and close it with Escape.</p></div></section>
+  <section class="filler" style="background:var(--muted)"><div class="wrap"><h2>More content</h2><p>Narrow the window below 1020px to see the mobile menu button.</p></div></section>
+</main>
+<div id="site-footer"></div>
+<script src="assets/layout.js"></script>
+</body>
+</html>

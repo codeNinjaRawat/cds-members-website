@@ -1,0 +1,110 @@
+{
+  "_help": "Images used by the website. During the demo they load directly from the Pexels CDN (free license). For production run: node scripts/fetch-images.mjs \u2192 self-hosted copies in public/images/ + CREDITS.md, then point the CMS media library at them.",
+  "images": [
+    {
+      "file": "home/phone-member.jpg",
+      "pexelsId": 7847650,
+      "width": 1200,
+      "page": "https://www.pexels.com/photo/woman-in-white-hijab-holding-a-smartphone-7847650/",
+      "use": "Home \u2013 wallet card tile"
+    },
+    {
+      "file": "home/masjid-interior.jpg",
+      "pexelsId": 40053903,
+      "width": 1920,
+      "page": "https://www.pexels.com/photo/majestic-interior-of-mosque-in-mannheim-germany-40053903/",
+      "use": "Home \u2013 masajid tile (large)"
+    },
+    {
+      "file": "home/children-quran.jpg",
+      "pexelsId": 35105938,
+      "width": 1200,
+      "page": "https://www.pexels.com/photo/children-reading-quran-in-traditional-attire-35105938/",
+      "use": "Home \u2013 schools tile"
+    },
+    {
+      "file": "home/clinic.jpg",
+      "pexelsId": 7659572,
+      "width": 1200,
+      "page": "https://www.pexels.com/photo/a-doctor-taking-blood-pressure-of-a-patient-7659572/",
+      "use": "Home \u2013 Shifa clinics tile"
+    },
+    {
+      "file": "home/volunteers.jpg",
+      "pexelsId": 6591165,
+      "width": 1200,
+      "page": "https://www.pexels.com/photo/volunteers-boxing-foods-to-be-distributed-6591165/",
+      "use": "Home \u2013 volunteers tile"
+    },
+    {
+      "file": "home/iftar.jpg",
+      "pexelsId": 36087668,
+      "width": 1200,
+      "page": "https://www.pexels.com/photo/indonesian-family-celebrating-iftar-together-36087668/",
+      "use": "Home \u2013 Ramadan tile"
+    },
+    {
+      "file": "home/houston-skyline.jpg",
+      "pexelsId": 29781715,
+      "width": 2400,
+      "page": "https://www.pexels.com/photo/modern-houston-skyline-in-daylight-29781715/",
+      "use": "Home \u2013 Houston band (full width)"
+    },
+    {
+      "file": "home/family-prayer.jpg",
+      "pexelsId": 9127577,
+      "width": 1400,
+      "page": "https://www.pexels.com/photo/father-and-son-kneeling-on-the-floor-9127577/",
+      "use": "Home \u2013 closing section"
+    },
+    {
+      "file": "join/family-reading.jpg",
+      "pexelsId": 35105921,
+      "width": 900,
+      "page": "https://www.pexels.com/photo/family-reading-together-generational-connection-35105921/",
+      "use": "Join page"
+    },
+    {
+      "file": "join/member-smiling.jpg",
+      "pexelsId": 6557125,
+      "width": 900,
+      "page": "https://www.pexels.com/photo/a-woman-wearing-hijab-taking-a-selfie-6557125/",
+      "use": "Join page"
+    },
+    {
+      "file": "join/father-son-dua.jpg",
+      "pexelsId": 9127597,
+      "width": 900,
+      "page": "https://www.pexels.com/photo/father-and-son-kneeling-on-the-floor-9127597/",
+      "use": "Join page"
+    },
+    {
+      "file": "pages/houston-night.jpg",
+      "pexelsId": 9556461,
+      "width": 1800,
+      "page": "https://www.pexels.com/photo/city-skyline-during-night-time-9556461/",
+      "use": "About page"
+    },
+    {
+      "file": "pages/masjid-dome.jpg",
+      "pexelsId": 8022480,
+      "width": 1800,
+      "page": "https://www.pexels.com/photo/the-yanus-emre-mosque-in-karaman-turkey-8022480/",
+      "use": "Elections page"
+    },
+    {
+      "file": "pages/masjid-arches.jpg",
+      "pexelsId": 30159436,
+      "width": 1800,
+      "page": "https://www.pexels.com/photo/30159436/",
+      "use": "Centers page"
+    },
+    {
+      "file": "pages/volunteers.jpg",
+      "pexelsId": 6646900,
+      "width": 1800,
+      "page": "https://www.pexels.com/photo/a-man-and-woman-carrying-medicine-and-food-cardboard-boxes-6646900/",
+      "use": "Volunteer page"
+    }
+  ]
+}

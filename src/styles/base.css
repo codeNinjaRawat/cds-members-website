@@ -1,0 +1,43 @@
+/* ISGH web – base design system (prototype). Uses ONLY theme variables from ../tokens/theme.css */
+*, *::before, *::after { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; scroll-padding-top: 96px; }
+body { margin: 0; background: var(--background); color: var(--foreground); font: 400 17px/1.6 var(--font-body); }
+body.locked { overflow: hidden; }
+img, svg { display: block; max-width: 100%; }
+a { color: inherit; text-underline-offset: 3px; }
+h1, h2, h3, h4 { font-family: var(--font-display); margin: 0; line-height: 1.05; letter-spacing: -0.015em; }
+p { margin: 0; }
+button { font: inherit; color: inherit; }
+:focus-visible { outline: 3px solid var(--ring); outline-offset: 3px; border-radius: 6px; }
+.wrap { width: min(1240px, 100% - 32px); margin-inline: auto; }
+.sr-only { position: absolute !important; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+.skip-link { position: fixed; left: 16px; top: -60px; z-index: 100; background: var(--primary); color: var(--primary-foreground);
+  padding: .7rem 1rem; border-radius: var(--radius); font-weight: 600; text-decoration: none; transition: top .15s; }
+.skip-link:focus { top: 12px; }
+
+/* Buttons */
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: .5rem; min-height: 48px; padding: 0 1.4rem;
+  border-radius: var(--radius-pill); font: 600 1rem var(--font-body); text-decoration: none; border: 1.5px solid transparent;
+  cursor: pointer; white-space: nowrap; transition: transform .15s, background-color .2s, color .2s; }
+.btn:active { transform: scale(.97); }
+.btn-primary { background: var(--primary); color: var(--primary-foreground); }
+.btn-primary:hover { background: color-mix(in srgb, var(--primary) 88%, var(--foreground)); }
+.btn-outline { background: transparent; border-color: var(--border); color: var(--foreground); }
+.btn-outline:hover { background: var(--accent); }
+.btn-highlight { background: var(--highlight); color: var(--highlight-foreground); }
+.btn-sm { min-height: 40px; padding: 0 1rem; font-size: .93rem; }
+.icon-btn { display: inline-grid; place-items: center; width: 44px; height: 44px; border-radius: 50%; border: 1.5px solid transparent;
+  background: transparent; cursor: pointer; }
+.icon-btn:hover { background: color-mix(in srgb, currentColor 10%, transparent); }
+
+/* Form basics */
+.field label { display: block; font-weight: 600; font-size: .95rem; margin-bottom: .35rem; }
+.input { width: 100%; min-height: 48px; padding: 0 1rem; border-radius: var(--radius-pill); border: 1.5px solid var(--input);
+  background: var(--card); color: var(--foreground); font: inherit; }
+.input[aria-invalid="true"] { border-color: var(--destructive); }
+.field-error { color: var(--destructive); font-size: .88rem; font-weight: 500; margin-top: .35rem; }
+.check { display: flex; gap: .6rem; align-items: flex-start; font-size: .92rem; cursor: pointer; }
+.check input { width: 20px; height: 20px; margin: .15rem 0 0; accent-color: var(--primary); flex: none; }
+
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
