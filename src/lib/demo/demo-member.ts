@@ -20,6 +20,8 @@ export type DemoMember = {
   checks: { label: string; state: CheckState; note: string }[];   // voting eligibility for the NEXT election year
   payments: { date: string; label: string; amountCents: number; receipt: string }[];
   idVerified: boolean;
+  /** Manual groups this person is in (demo; BE: from group membership). Automatic groups follow their rules. */
+  groupIds?: string[];
 };
 
 export const DEMO_MEMBERS: Record<string, DemoMember> = {
@@ -44,7 +46,7 @@ export const DEMO_MEMBERS: Record<string, DemoMember> = {
     idVerified: false,
   },
   'member@example.com': {
-    email: 'member@example.com', firstName: 'Imran', lastName: 'Siddiqui', memberId: 'HOU-100562',
+    email: 'member@example.com', firstName: 'Imran', lastName: 'Siddiqui', memberId: 'HOU-100562', groupIds: ['nominees-2026'],
     plan: 'Life', memberSince: 2011, status: 'Active', validThrough: null, paidThroughYear: null,
     zone: 'North', center: 'North Islamic Center 3', phone: '(281) 555-0199', address: ['16700 Old Louetta Rd', 'Spring, TX 77379'],
     checks: [
@@ -56,6 +58,22 @@ export const DEMO_MEMBERS: Record<string, DemoMember> = {
       { label: 'Photo ID verified', state: 'ok', note: 'Verified May 2024' },
     ],
     payments: [{ date: '2015-06-01', label: 'Life membership', amountCents: 100000, receipt: 'R-2015-00042' }],
+    idVerified: true,
+  },
+  /** M4 demo: a member who also runs a masjid (Associate Director) and represents a ZIP code – three dashboards. */
+  'ad.se1@example.org': {
+    email: 'ad.se1@example.org', firstName: 'Yasir', lastName: 'Karim', memberId: 'HOU-DEMO-AD',
+    plan: 'Single', memberSince: 2014, status: 'Active', validThrough: '2026-12-31', paidThroughYear: 2026,
+    zone: 'Southeast', center: 'Southeast Islamic Center 1', phone: '(281) 555-0177', address: ['2210 Bay Area Blvd', 'Houston, TX 77062'],
+    checks: [
+      { label: 'Application approved by the Board', state: 'ok', note: 'Approved 2014' },
+      { label: 'Age 18 or older on June 30', state: 'ok', note: 'Confirmed' },
+      { label: 'Commitment chosen', state: 'ok', note: 'Volunteer in approved activities' },
+      { label: 'Lives in the service area', state: 'ok', note: 'Southeast zone · ZIP 77062' },
+      { label: 'Own 2027 dues paid by June 30, 2027', state: 'todo', note: 'Renewal opens November 1, 2026' },
+      { label: 'Photo ID verified', state: 'ok', note: 'Verified 2025' },
+    ],
+    payments: [{ date: '2026-01-20', label: '2026 Single membership', amountCents: 2500, receipt: 'R-2026-00212' }],
     idVerified: true,
   },
 };
@@ -71,6 +89,18 @@ export function getSessionEmail(): string | null {
 export function setSession(email: string | null, silent = false) {
   try { if (email) sessionStorage.setItem(KEY, email); else sessionStorage.removeItem(KEY); } catch { /* storage blocked */ }
   if (!silent) window.dispatchEvent(new Event(SESSION_EVENT));
+}
+/** Demo: groups joined or asked for in this tab (live: POST /member/groups/{id} and the member's record). */
+const GROUPS_KEY = 'isgh-demo-groups';
+type GroupState = { ids: string[]; requested: string[] };
+const readGroupState = (): Record<string, GroupState> => { try { return JSON.parse(sessionStorage.getItem(GROUPS_KEY) || '{}'); } catch { return {}; } };
+export function memberGroups(m: DemoMember): GroupState {
+  const s = typeof window === 'undefined' ? undefined : readGroupState()[m.email];
+  return s ?? { ids: m.groupIds ?? [], requested: [] };
+}
+export function saveMemberGroups(m: DemoMember, st: GroupState) {
+  try { sessionStorage.setItem(GROUPS_KEY, JSON.stringify({ ...readGroupState(), [m.email]: st })); } catch { /* private mode */ }
+  window.dispatchEvent(new Event(SESSION_EVENT));
 }
 export function findMember(email: string | null | undefined): DemoMember | null {
   return email ? DEMO_MEMBERS[email.trim().toLowerCase()] ?? null : null;

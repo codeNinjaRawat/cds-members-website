@@ -9,6 +9,15 @@ import { GivingSchema, mockGiving } from './giving';
 import { MembershipSettingsSchema, mockMembershipSettings } from './membership';
 import { mockNews, mockPages, NewsItemSchema, PageSchema, type Page } from './pages';
 import { defaultJoinForm, JoinFormSchema } from '@/lib/join/form-def';
+import { EventsSchema, mockEvents } from '@/lib/community/events';
+import { mockOrgConfig, OrgConfigSchema } from '@/lib/community/org-config';
+import { GroupsSchema, mockGroups } from '@/lib/community/groups';
+import { BenefitsSchema, mockBenefits } from '@/lib/community/benefits';
+import { OfficialsSchema, mockOfficials } from '@/lib/community/officials';
+import { OrgStructureSchema, mockOrgStructure } from '@/lib/community/org-structure';
+import { PrayerSettingsSchema, mockPrayerSettings } from '@/lib/community/prayer';
+import { FundraisingSchema, mockFundraising } from '@/lib/community/fundraising';
+import { SignInSchema, mockSignIn } from '@/lib/community/sign-in';
 
 export const getHome = cache(() => loadPublic('/public/pages/home', HomeSchema, mockHome, ['page:home'], 'home'));
 export const getMembershipSettings = cache(() =>
@@ -29,3 +38,22 @@ export const getPage = cache(async (slug: string): Promise<Page | null> => {
   return loadPublic(`/public/pages/${slug}`, PageSchema.nullable(), mock, [`page:${slug}`]);
 });
 export const listPageSlugs = async () => Object.keys((await readDemoStore('pages', z.record(z.string(), PageSchema), mockPages)) ?? mockPages);
+
+/** Admin › Events – the organization's events (public list, detail and registration) */
+export const getEvents = cache(() => loadPublic('/public/events', EventsSchema, mockEvents, ['events'], 'events'));
+/** Admin › Settings › Configuration – directory, payments, member card, discounts (public parts only on the BE) */
+/** Admin › Members › Groups – names, join policy and access (BE: only the groups this visitor may see) */
+export const getGroups = cache(() => loadPublic('/public/groups', GroupsSchema, mockGroups, ['groups'], 'groups'));
+/** Admin › Member benefits – partners and offers (live: GET /member/benefits returns only what this member may see) */
+export const getBenefits = cache(() => loadPublic('/member/benefits', BenefitsSchema, mockBenefits, ['benefits'], 'benefits'));
+/** Admin › Elected officials – the website shows publicOfficials() only (live: GET /public/leadership returns just that) */
+export const getOfficials = cache(() => loadPublic('/public/leadership', OfficialsSchema, mockOfficials, ['officials'], 'officials'));
+/** Admin › Zones and centers – zones, ZIP codes and centers (public parts) */
+export const getOrgStructure = cache(() => loadPublic('/public/centers', OrgStructureSchema, mockOrgStructure, ['org-structure'], 'org-structure'));
+/** Admin › Prayer times – calculation, iqamah rules per center, special prayers */
+export const getPrayerTimes = cache(() => loadPublic('/public/prayer-times', PrayerSettingsSchema, mockPrayerSettings, ['prayer-times'], 'prayer-times'));
+/** Admin › Fundraising – campaigns and approved personal pages (live: GET /public/campaigns with totals) */
+export const getFundraising = cache(() => loadPublic('/public/campaigns', FundraisingSchema, mockFundraising, ['fundraising'], 'fundraising'));
+/** Admin › Settings › Sign-in – which sign-in methods show and what each dashboard is called (M4) */
+export const getSignIn = cache(() => loadPublic('/public/sign-in', SignInSchema, mockSignIn, ['sign-in'], 'sign-in'));
+export const getOrgConfig = cache(() => loadPublic('/public/config', OrgConfigSchema, mockOrgConfig, ['org-config'], 'org-config'));

@@ -22,3 +22,9 @@
 - 2026-10-13 – Member portal family tree (/portal/family) + member home tile.
 - 2026-10-14 – Join flow reads the admin's form: extra questions and steps, rules, ID scan, renewal prefill, save and continue later; API validates answers; 109 tests.
 - 2026-10-15 – SaaS: website serves every organization by address; starter content per organization; "temporarily unavailable" / "not in use" pages; preview bridge accepts the org's own admin; 109 tests.
+- 2026-10-15 – /events + /events/[id] with registration (waitlist, guests, codes, members-only types; API re-checks); join: payment methods, cover fees, discount code, check waiting to clear; member home follows card/directory switches; /portal/directory (off by default); 118 tests.
+- 2026-10-15 – Renewal engine shared contract: src/lib/content/renewal.ts (termFor, priceFor, canRenew, timeline, standingOn, duesCoverVote); MembershipSettingsSchema now checks plan/lifecycle contradictions.
+- 2026-10-15 – member-records contract (fields access, checkValues, directoryCard, findDuplicates, CSV, planImport); directory follows privacy rules.
+- 2026-10-15 – Groups: getGroups loader, register API checks group membership, group event gate, member home 'Your groups', POST /api/groups/membership.
+- 2026-10-15 – Communication rules (contextOf, MUST_INCLUDE, ALWAYS_ON, renewalEmails, renderHtml) + campaigns contract; /email-preferences page and PUT /api/preferences.
+- 2026-10-15 – Events public copies + seats + refunds + calendar; payments.ts (checkoutTotal, receipts); member home follows card / self-service; sign-in start page.

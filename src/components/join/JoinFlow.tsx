@@ -11,6 +11,7 @@
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { formatUSD, quote, type MembershipSettings } from '@/lib/content/membership';
+import { fmtDay, termFor } from '@/lib/content/renewal';
 import { digits, fieldErrors, makeJoinSchemas, US_STATES, votingPreview } from '@/lib/join/schema';
 import type { LookupResult } from '@/lib/join/residency';
 import * as svc from '@/lib/demo/demo-service';
@@ -19,6 +20,7 @@ import { LOADER_PLANS, SmartLoader, type LoaderKey } from '@/components/ui/Smart
 import { cleanAnswers, coreHelp, coreLabel, coreShown, fieldShown, JoinFormSchema, sectionsAt, validateSections, type Answers, type FormCtx, type JoinForm, type JoinSection, type Placement } from '@/lib/join/form-def';
 import { answerText, CustomSections } from './CustomFields';
 import { findMember } from '@/lib/demo/demo-member';
+import { applyDiscount, feeCover, PAY_LABEL, payMethods, type OrgConfig } from '@/lib/community/org-config';
 
 /** Core steps + admin steps ("s:<section id>") placed after about / plan / pledge. */
 type StepId = string;
@@ -74,7 +76,7 @@ const describedBy = (id: string, hint?: boolean, error?: string) =>
   [hint ? `${id}-hint` : '', error ? `${id}-error` : ''].filter(Boolean).join(' ') || undefined;
 
 /* ---------------- main ---------------- */
-export function JoinFlow({ settings, form, initialPlan, mockMode = svc.DEMO }: { settings: MembershipSettings; form: JoinForm; initialPlan?: string; mockMode?: boolean }) {
+export function JoinFlow({ settings, form, initialPlan, mockMode = svc.DEMO, config }: { settings: MembershipSettings; form: JoinForm; initialPlan?: string; mockMode?: boolean; config?: OrgConfig }) {
   // the admin's live preview can push an unsaved form definition into this page (PreviewBridge → event)
   const [liveForm, setLiveForm] = useState<JoinForm>(form);
   const schemas = useMemo(() => makeJoinSchemas(settings), [settings]);
@@ -88,7 +90,13 @@ export function JoinFlow({ settings, form, initialPlan, mockMode = svc.DEMO }: {
   const busy = task !== null;
   const [notice, setNotice] = useState('');
   const [otp, setOtp] = useState({ sent: false, code: '', devCode: '', seconds: 0, existing: false });
-  const [result, setResult] = useState<{ applicationId: string; amountCents: number } | null>(null);
+  const [result, setResult] = useState<{ applicationId: string; amountCents: number; method?: string } | null>(null);
+  // Admin › Settings › Configuration › Payments / Discount codes (WildApricot: Payment settings, Discounts)
+  const methods = config ? payMethods(config) : (['card'] as const);
+  const [payMethod, setPayMethod] = useState<string>(methods[0] ?? 'card');
+  const [coverFees, setCoverFees] = useState(false);
+  const [code, setCode] = useState('');
+  const [applied, setApplied] = useState<{ code: string; cents: number; message: string } | null>(null);
   const headingRef = useRef<HTMLHeadingElement>(null);
   const summaryRef = useRef<HTMLDivElement>(null);
 
@@ -147,6 +155,10 @@ export function JoinFlow({ settings, form, initialPlan, mockMode = svc.DEMO }: {
 
   const plan = plans.find((p) => p.id === d.plan.planId);
   const price = plan ? quote(plan, d.plan.years) : null;
+  const afterCode = price ? (applied ? applied.cents : price.totalCents) : 0;
+  const feeCents = config && coverFees ? feeCover(config, afterCode, payMethod) : 0;
+  const finalCents = afterCode + feeCents;
+  const offline = payMethod === 'check' || payMethod === 'cash' || payMethod === 'payLater';
   const preview = votingPreview(settings, { dob: d.about.dob, memberClass: d.plan.memberClass, planId: d.plan.planId, commitments: d.pledge.commitments, state: d.about.state, payer: d.payment.payer });
   const ctx: FormCtx = { planId: d.plan.planId, planCategory: plan?.category ?? '', memberClass: d.plan.memberClass, age: d.about.dob ? ageOnRecord(d.about.dob, new Date().toISOString().slice(0, 10)) : null };
   const ownSteps = (p: Placement): StepDef[] => sectionsAt(liveForm, p).map((sec) => ({ id: `s:${sec.id}`, label: sec.title, section: sec }));
@@ -261,8 +273,8 @@ export function JoinFlow({ settings, form, initialPlan, mockMode = svc.DEMO }: {
     setTask('submit');
     try {
       // DEMO: no API call, no payment. Live: BE re-validates, recomputes price, returns Stripe Checkout URL.
-      const j = await svc.submitApplication(price!.totalCents);
-      setResult({ applicationId: j.applicationId, amountCents: j.amountCents });
+      const j = await svc.submitApplication(finalCents);
+      setResult({ applicationId: j.applicationId, amountCents: j.amountCents, method: payMethod });
       goTo('done');
     } catch { showErrors({ form: 'We could not submit your application. Nothing was charged. Try again in a minute.' }); }
     finally { setTask(null); }
@@ -584,7 +596,7 @@ export function JoinFlow({ settings, form, initialPlan, mockMode = svc.DEMO }: {
           {plan && plan.term === 'calendar_year' && plan.maxYearsAhead > 1 && (
             <Field id="f-plan-years" label="How many years?" hint={plan.multiYearDiscountPct ? `Save ${plan.multiYearDiscountPct}% when you pay 2 or more years.` : undefined} error={err('plan.years')}>
               <select id="f-plan-years" className="input narrow-input" value={d.plan.years} onChange={(e) => set('plan', { years: Number(e.target.value) })}>
-                {Array.from({ length: plan.maxYearsAhead }, (_, i) => i + 1).map((y) => <option key={y} value={y}>{y} year{y > 1 ? 's' : ''} ({settings.year}{y > 1 ? `–${settings.year + y - 1}` : ''})</option>)}
+                {Array.from({ length: plan.maxYearsAhead }, (_, i) => i + 1).map((y) => <option key={y} value={y}>{y} year{y > 1 ? 's' : ''} ({settings.year}{y > 1 ? `–${settings.year + y - 1}` : ''}, through {fmtDay(termFor(plan, { start: `${settings.year}-01-01`, years: y, saleYear: settings.year }).through ?? '')})</option>)}
               </select>
             </Field>
           )}
@@ -724,12 +736,18 @@ export function JoinFlow({ settings, form, initialPlan, mockMode = svc.DEMO }: {
           </fieldset>
 
           <PriceBox total={price.totalCents} gross={price.grossCents} discount={price.discountCents} years={price.years} />
-          <p className="hint">Dues are not refundable. Card payments are processed securely by Stripe; ISGH never sees your card number.</p>
+          {config && (
+            <PayOptions cfg={config} methods={methods} method={payMethod} onMethod={setPayMethod} cover={coverFees} onCover={setCoverFees} feeCents={feeCover(config, afterCode, payMethod === 'ach' ? 'ach' : 'card')}
+              code={code} onCode={(c) => { setCode(c); setApplied(null); }} applied={applied}
+              onApply={() => { const r = applyDiscount(config, code, price.totalCents, { kind: 'plan', planId: plan?.id }, new Date().toISOString().slice(0, 10)); if (r.ok) { setApplied({ code: code.trim().toUpperCase(), cents: r.cents, message: r.message }); setErrors((x) => { const n = { ...x }; delete n['payment.code']; return n; }); } else { setApplied(null); setErrors((x) => ({ ...x, 'payment.code': r.message })); } }}
+              codeError={err('payment.code')} total={finalCents} />
+          )}
+          <p className="hint">{config?.payments.refundPolicy || 'Dues are not refundable.'} Card payments are processed securely by Stripe; ISGH never sees your card number.</p>
           {mockMode && <p className="jf-test">Test mode: no card is charged and no payment page opens.</p>}
           {err('form') && <p className="field-error" id="f-form">{err('form')}</p>}
           <div className="step-nav">
             <button type="button" className="btn btn-outline" onClick={() => goTo(prevOf('review'))}>Back</button>
-            <button type="submit" className="btn btn-primary" disabled={busy} data-busy={task === 'submit' || undefined}>{task === 'submit' ? 'Submitting…' : `Pay ${formatUSD(price.totalCents)} and submit`}</button>
+            <button type="submit" className="btn btn-primary" disabled={busy} data-busy={task === 'submit' || undefined}>{task === 'submit' ? 'Submitting…' : finalCents === 0 ? 'Submit – nothing to pay' : offline ? `Submit – I will pay ${formatUSD(finalCents)} ${payMethod === 'check' ? 'by check' : payMethod === 'cash' ? 'in cash' : 'later'}` : `Pay ${formatUSD(finalCents)} and submit`}</button>
           </div>
         </form>
       )}
@@ -751,7 +769,9 @@ export function JoinFlow({ settings, form, initialPlan, mockMode = svc.DEMO }: {
           <p className="jf-lead">Thank you, {d.about.preferredName || d.about.firstName}. Your application number is <b>{result.applicationId}</b>. We sent a receipt for {formatUSD(result.amountCents)} to {d.account.email}.</p>
           <ol className="timeline">
             <li className="done"><b>Application submitted</b><span>Today</span></li>
-            <li className="done"><b>Payment received</b><span>{formatUSD(result.amountCents)}</span></li>
+            {result.method === 'check' || result.method === 'cash' || result.method === 'payLater'
+              ? <li className="current"><b>{result.method === 'check' ? 'Check – waiting to clear' : result.method === 'cash' ? 'Cash – pay at your center' : 'Invoice sent – pay later'}</b><span>{formatUSD(result.amountCents)}</span></li>
+              : <li className="done"><b>Payment received</b><span>{formatUSD(result.amountCents)}</span></li>}
             <li className="current"><b>Board review</b><span>Usually 2–5 business days</span></li>
             {settings.flags.idUpload && (d.idCaptured
               ? <li className="done"><b>Photo ID received</b><span>Staff check it with your application</span></li>
@@ -830,6 +850,37 @@ function StepNav({ onBack, busy, onSave }: { onBack: () => void; busy: boolean; 
       <button type="button" className="btn btn-outline" onClick={onBack}>Back</button>
       {onSave && <button type="button" className="linkish jf-save" onClick={onSave}>Save and finish later</button>}
       <button type="submit" className="btn btn-primary" disabled={busy}>Continue</button>
+    </div>
+  );
+}
+
+/** Ways to pay, optional gift to cover card fees, discount code – all switched in Admin › Settings › Configuration. */
+function PayOptions({ cfg, methods, method, onMethod, cover, onCover, feeCents, code, onCode, applied, onApply, codeError, total }: {
+  cfg: OrgConfig; methods: readonly string[]; method: string; onMethod: (m: string) => void; cover: boolean; onCover: (v: boolean) => void; feeCents: number;
+  code: string; onCode: (c: string) => void; applied: { code: string; cents: number; message: string } | null; onApply: () => void; codeError?: string; total: number;
+}) {
+  return (
+    <div className="pay-options">
+      {methods.length > 1 && (
+        <fieldset className="jf-fieldset" id="f-payment-method"><legend>How would you like to pay?</legend>
+          <div className="choice-row compact">{methods.map((m) => (
+            <label key={m} className={`choice${method === m ? ' on' : ''}`}><input type="radio" name="pay-method" value={m} checked={method === m} onChange={() => onMethod(m)} /> <span><b>{PAY_LABEL[m as keyof typeof PAY_LABEL]}</b></span></label>
+          ))}</div>
+          {method === 'check' && <p className="hint">Make the check payable to the organization and bring or mail it to the office. {cfg.payments.checkPendingStatus ? 'Your membership shows “Check – waiting to clear” until we receive it.' : ''}</p>}
+        </fieldset>
+      )}
+      {cfg.discounts.enabled && (
+        <div className="field" id="f-payment-code"><label htmlFor="pay-code">Discount code <span className="opt">(optional)</span></label>
+          <div className="input-group"><input id="pay-code" className="input" value={code} onChange={(e) => onCode(e.target.value)} autoComplete="off" aria-invalid={!!codeError || undefined} />
+            <button type="button" className="btn btn-outline" onClick={onApply} disabled={!code.trim()}>Apply</button></div>
+          {applied && <p className="hint" role="status">{applied.message}</p>}
+          {codeError && <p className="field-error">{codeError}</p>}
+        </div>
+      )}
+      {cfg.payments.coverFees.enabled && (method === 'card' || method === 'ach') && feeCents > 0 && (
+        <label className="check"><input type="checkbox" checked={cover} onChange={(e) => onCover(e.target.checked)} /> <span>Add {formatUSD(feeCents)} to cover card fees, so all of my dues reach the community</span></label>
+      )}
+      {(applied || (cover && feeCents > 0)) && <p className="pay-total" aria-live="polite">You pay <b>{formatUSD(total)}</b></p>}
     </div>
   );
 }

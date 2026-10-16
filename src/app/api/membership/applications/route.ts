@@ -6,14 +6,16 @@
  */
 import { NextResponse } from 'next/server';
 import { apiConfig, apiPost } from '@/lib/api/client';
-import { getJoinForm, getMembershipSettings } from '@/lib/content/loaders';
+import { getJoinForm, getMembershipSettings, getOrgConfig } from '@/lib/content/loaders';
+import { payMethods } from '@/lib/community/org-config';
+import { checkoutTotal, type PayMethod } from '@/lib/community/payments';
 import { quote } from '@/lib/content/membership';
 import { ageOn } from '@/lib/content/membership';
 import { fieldErrors, makeJoinSchemas, todayISO } from '@/lib/join/schema';
 import { cleanAnswers, type Answers } from '@/lib/join/form-def';
 
 export async function POST(req: Request) {
-  const [settings, form] = await Promise.all([getMembershipSettings(), getJoinForm()]);
+  const [settings, form, config] = await Promise.all([getMembershipSettings(), getJoinForm(), getOrgConfig()]);
   const { application } = makeJoinSchemas(settings);
   const raw = await req.json().catch(() => null);
   const parsed = application.safeParse(raw);
@@ -25,16 +27,25 @@ export async function POST(req: Request) {
     { planId: plan.id, planCategory: plan.category, memberClass: parsed.data.plan.memberClass, age: ageOn(parsed.data.about.dob, todayISO(settings.timezone)) });
   if (Object.keys(custom.errors).length) return NextResponse.json({ error: 'invalid_application', fields: custom.errors }, { status: 422 });
   const price = quote(plan, parsed.data.plan.years);
+  // how they pay (Admin › Settings › Configuration): method must be switched on; code and fee cover recomputed here
+  const co = (raw && typeof raw === 'object' && 'checkout' in raw && raw.checkout && typeof raw.checkout === 'object' ? raw.checkout : {}) as { method?: unknown; coverFees?: unknown; discountCode?: unknown };
+  const method = typeof co.method === 'string' ? co.method : 'card';
+  if (!(payMethods(config) as readonly string[]).includes(method)) return NextResponse.json({ error: 'invalid_application', fields: { 'payment.method': 'Choose one of the ways to pay shown.' } }, { status: 422 });
+  // one shared calculation: dues → code → fee-cover gift (payments.ts); a $0 total needs no payment at all
+  const co2 = checkoutTotal(config, { label: `${plan.name} membership`, kind: 'dues', priceCents: price.totalCents, planId: plan.id, method: method as PayMethod, coverFees: co.coverFees === true, code: typeof co.discountCode === 'string' ? co.discountCode : undefined, today: todayISO(settings.timezone) });
+  if (!co2.codeOk) return NextResponse.json({ error: 'invalid_application', fields: { 'payment.code': co2.codeMessage } }, { status: 422 });
+  const amount = co2.totalCents;
+  const offline = method === 'check' || method === 'cash' || method === 'payLater';
 
   if (apiConfig.useMock) {
     const id = `APP-${settings.year}-${Math.floor(10000 + Math.random() * 89999)}`;
-    return NextResponse.json({ applicationId: id, status: 'submitted', amountCents: price.totalCents, payment: { mode: 'test', status: 'paid' } }, { status: 201 });
+    return NextResponse.json({ applicationId: id, status: 'submitted', amountCents: amount, lines: co2.lines, payment: co2.needsPayment ? { mode: 'test', method, status: offline ? (method === 'check' && config.payments.checkPendingStatus ? 'check_pending' : 'pending') : 'paid' } : { mode: 'test', method: null, status: 'none' } }, { status: 201 });
   }
   try {
     const r = await apiPost<{ applicationId: string; checkoutUrl?: string }>('/public/membership/applications', {
-      ...parsed.data, custom: custom.answers, joinFormVersion: form.version, quotedAmountCents: price.totalCents,
+      ...parsed.data, custom: custom.answers, joinFormVersion: form.version, quotedAmountCents: amount, checkout: { method, coverFees: co.coverFees === true, discountCode: co.discountCode },
     });
-    return NextResponse.json({ ...r, amountCents: price.totalCents }, { status: 201 });
+    return NextResponse.json({ ...r, amountCents: amount }, { status: 201 });
   } catch {
     return NextResponse.json({ error: 'unavailable' }, { status: 503 });
   }

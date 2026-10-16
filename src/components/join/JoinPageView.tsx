@@ -6,10 +6,11 @@ import { Photo } from '@/components/ui/Photo';
 import { JoinFlow } from './JoinFlow';
 import { defaultJoinForm, type JoinForm } from '@/lib/join/form-def';
 import type { Giving } from '@/lib/content/giving';
+import type { OrgConfig } from '@/lib/community/org-config';
 
-type Props = { settings: MembershipSettings; form?: JoinForm; initialPlan?: string; mockMode?: boolean; images?: ImageRef[]; giving?: Giving };
+type Props = { settings: MembershipSettings; form?: JoinForm; initialPlan?: string; mockMode?: boolean; images?: ImageRef[]; giving?: Giving; config?: OrgConfig };
 
-export function JoinPageView({ settings, form = defaultJoinForm, initialPlan, mockMode, images = [], giving }: Props) {
+export function JoinPageView({ settings, form = defaultJoinForm, initialPlan, mockMode, images = [], giving, config }: Props) {
   const verse = giving?.verses.find((v) => v.ref === '3:92') ?? giving?.verses[0];
   return (
     <div className="join-page">
@@ -21,7 +22,7 @@ export function JoinPageView({ settings, form = defaultJoinForm, initialPlan, mo
             <ul className="join-facts">
               <li>Membership runs January 1 to December 31, {settings.year}.</li>
               <li>Pay by June 30 to vote in that year&apos;s elections.</li>
-              <li>Card, Apple Pay or Google Pay. Receipt by email.</li>
+              <li>{config?.payments.check ? 'Card, Apple Pay, Google Pay or check.' : 'Card, Apple Pay or Google Pay.'} Receipt by email.</li>
             </ul>
             <p className="join-already">Already a member? <Link href="/sign-in">Sign in</Link> or <Link href="/membership/renew">renew</Link>.</p>
           </div>
@@ -33,7 +34,7 @@ export function JoinPageView({ settings, form = defaultJoinForm, initialPlan, mo
         </div>
       </section>
       <div className="wrap">
-        <JoinFlow settings={settings} form={form} initialPlan={initialPlan} mockMode={mockMode} />
+        <JoinFlow settings={settings} form={form} initialPlan={initialPlan} mockMode={mockMode} config={config} />
       </div>
       {giving && (
         <section className="join-why" aria-labelledby="jw-h">

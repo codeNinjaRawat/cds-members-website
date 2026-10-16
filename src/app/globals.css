@@ -9,6 +9,7 @@
 @import "../styles/giving.css";
 @import "../styles/account.css";
 @import "../styles/family.css";
+@import "../styles/events.css";
 
 /*
  * Theme colors are CSS variables injected at runtime from the admin-controlled theme (see src/lib/theme).
