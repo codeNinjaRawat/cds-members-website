@@ -12,3 +12,15 @@
 .star-row label:has(input:focus-visible) { outline: 3px solid var(--ring); border-radius: 6px; }
 .star-label { margin-left: .8rem; color: var(--muted-foreground); font-weight: 600; }
 .cms-hero-img { aspect-ratio: 21 / 9; border-radius: var(--radius-lg); margin-bottom: 2rem; }
+
+/* D7 – portal › Ask or tell us: one-tap starts */
+.rq-quick { display: flex; gap: .5rem; flex-wrap: wrap; }
+.rq-chip { font: inherit; font-size: .9rem; font-weight: 600; padding: .5rem .85rem; border-radius: 999px; border: 1px solid var(--border); background: var(--card); color: var(--ink); cursor: pointer; }
+.rq-chip:hover, .rq-chip:focus-visible { border-color: var(--accent); }
+.rq-chip[aria-pressed="true"] { background: var(--accent); color: var(--on-accent, #fff); border-color: var(--accent); }
+
+/* D11 – giving › become a member with your monthly gift */
+.give-offer { margin: 1rem 0; padding: 1rem; border-radius: var(--radius-lg); border: 1px solid var(--border); background: color-mix(in srgb, var(--accent) 8%, var(--card)); text-align: left; display: grid; gap: .5rem; }
+.give-offer h3 { margin: 0; font-size: 1.05rem; }
+.give-offer p { margin: 0; }
+.give-offer .btn { justify-self: start; }

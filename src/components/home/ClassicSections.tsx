@@ -1,7 +1,7 @@
 /** Sections used by the classic layout (and available to any layout via admin section list). */
 import Link from 'next/link';
 import type { Home } from '@/lib/content/home';
-import { formatUSD, type MembershipSettings } from '@/lib/content/membership';
+import { formatUSD, memberClass, type MembershipSettings } from '@/lib/content/membership';
 
 export function StepsBand({ journey }: { journey: Home['journey'] }) {
   return (
@@ -15,7 +15,7 @@ export function StepsBand({ journey }: { journey: Home['journey'] }) {
 }
 
 export function PlanCards({ settings }: { settings: MembershipSettings }) {
-  const plans = settings.plans.filter((p) => p.visible && p.memberClass === 'natural');
+  const plans = settings.plans.filter((p) => p.visible && memberClass(settings.rules, p.memberClass).canVote);
   const dl = new Date(settings.recordDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric', timeZone: settings.timezone });
   return (
     <section className="plans-band" id="plans" aria-labelledby="plans-h">

@@ -5,7 +5,7 @@
  * Mock: returns a test application id and a simulated paid status.
  */
 import { NextResponse } from 'next/server';
-import { apiConfig, apiPost } from '@/lib/api/client';
+import { apiCall, apiConfig } from '@/lib/api/client';
 import { getJoinForm, getMembershipSettings, getOrgConfig } from '@/lib/content/loaders';
 import { payMethods } from '@/lib/community/org-config';
 import { checkoutTotal, type PayMethod } from '@/lib/community/payments';
@@ -42,10 +42,12 @@ export async function POST(req: Request) {
     return NextResponse.json({ applicationId: id, status: 'submitted', amountCents: amount, lines: co2.lines, payment: co2.needsPayment ? { mode: 'test', method, status: offline ? (method === 'check' && config.payments.checkPendingStatus ? 'check_pending' : 'pending') : 'paid' } : { mode: 'test', method: null, status: 'none' } }, { status: 201 });
   }
   try {
-    const r = await apiPost<{ applicationId: string; checkoutUrl?: string }>('/public/membership/applications', {
+    const r = await apiCall('POST', '/public/membership/applications', {
       ...parsed.data, custom: custom.answers, joinFormVersion: form.version, quotedAmountCents: amount, checkout: { method, coverFees: co.coverFees === true, discountCode: co.discountCode },
+      joinToken: raw && typeof raw === 'object' && 'joinToken' in raw ? String((raw as { joinToken: unknown }).joinToken) : '',
     });
-    return NextResponse.json({ ...r, amountCents: amount }, { status: 201 });
+    if (r.status >= 400) { const b = (r.body ?? {}) as { error?: string; detail?: unknown }; return NextResponse.json({ error: 'invalid_application', message: b.error, fields: b.detail }, { status: r.status }); }
+    return NextResponse.json(r.body, { status: 201 });   // the API's own price and payment ids (card → POST /public/checkout)
   } catch {
     return NextResponse.json({ error: 'unavailable' }, { status: 503 });
   }

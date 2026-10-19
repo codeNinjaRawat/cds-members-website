@@ -9,6 +9,7 @@
  *   ISGH → the store folder itself (as before) · any other organization → <store>/tenants/<slug>/
  * An organization that has not published something yet gets starter content made from its profile (seed.ts).
  */
+import { SIMPLE_WORK_PRESET } from '@/lib/community/work';
 import 'server-only';
 import { readFileSync, existsSync } from 'node:fs';
 import path from 'node:path';
@@ -20,7 +21,7 @@ import { apiConfig } from './client';
 import { tenantDir, tenantForHost, type TenantLookup } from '@/lib/platform/platform-store';
 import { seedFor } from '@/lib/platform/seed';
 
-export const DEMO_STORE_KEYS = ['site-config', 'home', 'membership-settings', 'giving', 'pages', 'news', 'themes', 'join-form', 'events', 'groups', 'communication', 'org-config', 'benefits', 'officials', 'org-structure', 'prayer-times', 'fundraising', 'sign-in', 'admin-access'] as const; // admin-access: server only (sign-in dashboards), never sent to a browser as a whole
+export const DEMO_STORE_KEYS = ['site-config', 'home', 'membership-settings', 'giving', 'pages', 'news', 'themes', 'join-form', 'events', 'groups', 'communication', 'org-config', 'benefits', 'officials', 'org-structure', 'prayer-times', 'fundraising', 'sign-in', 'admin-access', 'records', 'elections', 'work-settings'] as const; // admin-access: server only (sign-in dashboards), never sent to a browser as a whole
 export type DemoStoreKey = (typeof DEMO_STORE_KEYS)[number];
 
 export const demoStoreDir = () => process.env.ISGH_DEMO_STORE ?? path.resolve(process.cwd(), '..', '.demo-store');
@@ -54,6 +55,7 @@ export async function readDemoStore<T>(key: DemoStoreKey, schema?: ZodType<T, Zo
       console.error(`[demo-store] could not read ${slug}/${key}.json – using the default`, err);
     }
   }
-  if (tenant && slug !== 'isgh' && isghDefault !== undefined && key !== 'admin-access') return seedFor(key, isghDefault, tenant); // never another organization's admins
+  if (tenant && slug !== 'isgh' && key === 'work-settings') return SIMPLE_WORK_PRESET as T; // other organizations start simple, nobody pre-assigned
+  if (tenant && slug !== 'isgh' && isghDefault !== undefined && key !== 'admin-access' && key !== 'work-settings') return seedFor(key, isghDefault, tenant); // never another organization's admins
   return null;
 }

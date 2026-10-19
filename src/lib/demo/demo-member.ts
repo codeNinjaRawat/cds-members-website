@@ -6,6 +6,7 @@
  * The demo keeps the signed-in email in sessionStorage (cleared when the tab closes).
  */
 import { useEffect, useState } from 'react';
+import { LIVE, be } from '@/lib/live/live';
 
 export type CheckState = 'ok' | 'todo' | 'wait' | 'no';
 export type DemoMember = {
@@ -22,6 +23,8 @@ export type DemoMember = {
   idVerified: boolean;
   /** Manual groups this person is in (demo; BE: from group membership). Automatic groups follow their rules. */
   groupIds?: string[];
+  /** Live: groups asked to join, waiting for a leader. */
+  requestedGroupIds?: string[];
 };
 
 export const DEMO_MEMBERS: Record<string, DemoMember> = {
@@ -83,26 +86,44 @@ const KEY = 'isgh-demo-session';
 export const SESSION_EVENT = 'isgh-session';
 
 export function getSessionEmail(): string | null {
+  if (LIVE) return liveMember()?.email ?? null;
   try { return sessionStorage.getItem(KEY); } catch { return null; }
 }
 /** `silent` = do not notify open views (used on sign-out so the member home does not redirect to sign-in first). */
 export function setSession(email: string | null, silent = false) {
-  try { if (email) sessionStorage.setItem(KEY, email); else sessionStorage.removeItem(KEY); } catch { /* storage blocked */ }
+  if (LIVE) { if (!email) { keepLive(null); void be('POST', 'auth/sign-out', {}); } }
+  else try { if (email) sessionStorage.setItem(KEY, email); else sessionStorage.removeItem(KEY); } catch { /* storage blocked */ }
   if (!silent) window.dispatchEvent(new Event(SESSION_EVENT));
+}
+
+/* ---------- live mode: the member's home from the API (GET /member/portal), a copy kept for this tab ---------- */
+const LIVE_KEY = 'ms-live-member';
+function liveMember(): DemoMember | null { try { const v = sessionStorage.getItem(LIVE_KEY); return v ? (JSON.parse(v) as DemoMember) : null; } catch { return null; } }
+function keepLive(m: DemoMember | null) { try { if (m) sessionStorage.setItem(LIVE_KEY, JSON.stringify(m)); else sessionStorage.removeItem(LIVE_KEY); } catch { /* storage blocked */ } }
+/** After signing in (or to re-check): load the member's home. null = not signed in as a member. */
+export async function refreshLiveMember(notify = true): Promise<DemoMember | null> {
+  const r = await be<{ member: DemoMember }>('GET', 'member/portal');
+  const m = r.ok ? r.data.member : null;
+  if (r.ok || r.status === 401 || r.status === 403 || r.status === 404) keepLive(m);   // offline: keep the copy
+  if (notify) window.dispatchEvent(new Event(SESSION_EVENT));
+  return r.ok ? m : r.status === 0 ? liveMember() : null;
 }
 /** Demo: groups joined or asked for in this tab (live: POST /member/groups/{id} and the member's record). */
 const GROUPS_KEY = 'isgh-demo-groups';
 type GroupState = { ids: string[]; requested: string[] };
 const readGroupState = (): Record<string, GroupState> => { try { return JSON.parse(sessionStorage.getItem(GROUPS_KEY) || '{}'); } catch { return {}; } };
 export function memberGroups(m: DemoMember): GroupState {
+  if (LIVE) return { ids: m.groupIds ?? [], requested: m.requestedGroupIds ?? [] };
   const s = typeof window === 'undefined' ? undefined : readGroupState()[m.email];
   return s ?? { ids: m.groupIds ?? [], requested: [] };
 }
 export function saveMemberGroups(m: DemoMember, st: GroupState) {
+  if (LIVE) { const cur = liveMember(); if (cur) keepLive({ ...cur, groupIds: st.ids, requestedGroupIds: st.requested }); window.dispatchEvent(new Event(SESSION_EVENT)); return; }
   try { sessionStorage.setItem(GROUPS_KEY, JSON.stringify({ ...readGroupState(), [m.email]: st })); } catch { /* private mode */ }
   window.dispatchEvent(new Event(SESSION_EVENT));
 }
 export function findMember(email: string | null | undefined): DemoMember | null {
+  if (LIVE) { const m = liveMember(); return m && email && m.email.toLowerCase() === email.trim().toLowerCase() ? m : null; }
   return email ? DEMO_MEMBERS[email.trim().toLowerCase()] ?? null : null;
 }
 /** Only allow same-site relative redirects after sign-in (no open redirect). */
@@ -116,6 +137,7 @@ export function useSignedInName(): string | null {
   useEffect(() => {
     const read = () => setName(findMember(getSessionEmail())?.firstName ?? null);
     read(); window.addEventListener(SESSION_EVENT, read);
+    if (LIVE && liveMember()) void refreshLiveMember();   // the session may have ended on the server
     return () => window.removeEventListener(SESSION_EVENT, read);
   }, []);
   return name;

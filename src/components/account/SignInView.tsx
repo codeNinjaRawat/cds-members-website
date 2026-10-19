@@ -10,7 +10,7 @@
 import Link from 'next/link';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import * as svc from '@/lib/demo/demo-service';
-import { DEMO_MEMBERS, findMember, getSessionEmail, safeNext, setSession } from '@/lib/demo/demo-member';
+import { DEMO_MEMBERS, findMember, getSessionEmail, refreshLiveMember, safeNext, setSession } from '@/lib/demo/demo-member';
 import { GoogleButton, type GoogleProfile } from '@/components/join/GoogleButton';
 import { aria, FField } from '@/components/forms/FormBits';
 import { LOADER_PLANS, SmartLoader, type LoaderKey } from '@/components/ui/SmartLoader';
@@ -61,19 +61,22 @@ export function SignInView({ startPath = '/portal', settings = mockSignIn, masji
   useEffect(() => { if (seconds <= 0) return; const t = setTimeout(() => setSeconds((s) => s - 1), 1000); return () => clearTimeout(t); }, [seconds]);
   useEffect(() => { headRef.current?.focus(); }, [step]);
 
-  const open = (d: Dashboard, mail = email) => {
+  const current = useRef<number | null>(null);   // live: the dashboard the new session opened on
+  const open = async (d: Dashboard, mail = email) => {
     try { if (remember) localStorage.setItem(LAST, `${mail}|${dashKey(d)}`); } catch { /* storage blocked */ }
+    if (!svc.DEMO && current.current !== d.index) { if (!(await svc.openDashboard(d.index))) return setError('That dashboard is not available any more. Please sign in again.'); current.current = d.index; }
     setStep('done');
     if (d.kind === 'member') { setSession(mail); go(next()); return; }
     if (findMember(mail)) setSession(mail, true);
-    // DEMO: the admin reads ?as= and ?dash= once (live: the session already knows the person; dash picks the role)
-    go(`${adminOrigin()}/?as=${encodeURIComponent(d.adminId)}&dash=${d.index}`);
+    // DEMO: the admin reads ?as= and ?dash= once. Live: the admin has its own sign-in (its own address and cookie); dash picks the role.
+    go(svc.DEMO ? `${adminOrigin()}/?as=${encodeURIComponent(d.adminId)}&dash=${d.index}` : `${adminOrigin()}/sign-in?dash=${d.index}&email=${encodeURIComponent(mail)}`);
   };
 
-  const finish = async (mail: string) => {
+  const finish = async (mail: string, live?: { dashboards: Dashboard[]; current?: number }) => {
+    if (live) { current.current = live.current ?? null; if (live.dashboards.some((x) => x.kind === 'member')) await refreshLiveMember(false); }
     const member = !!findMember(mail);
-    let dashboards: Dashboard[] = member ? [{ kind: 'member', label: settings.kinds.member.label, role: 'Member', where: '', index: -1, adminId: '' }] : [];
-    try {
+    let dashboards: Dashboard[] = live ? live.dashboards : member ? [{ kind: 'member', label: settings.kinds.member.label, role: 'Member', where: '', index: -1, adminId: '' }] : [];
+    if (!live) try {
       const r = await fetch('/api/auth/dashboards', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email: mail, code: svc.DEMO_CODE, member }) });
       if (r.ok) dashboards = ((await r.json()) as { dashboards: Dashboard[] }).dashboards;
     } catch { /* offline: membership only */ }
@@ -82,7 +85,7 @@ export function SignInView({ startPath = '/portal', settings = mockSignIn, masji
     let last: string | undefined;
     try { const v = localStorage.getItem(LAST); if (v?.startsWith(`${mail}|`)) last = v.slice(mail.length + 1); } catch { /* storage blocked */ }
     const auto = new URLSearchParams(window.location.search).has('switch') ? null : autoOpen(dashboards, settings, last);
-    if (auto) open(auto, mail); else setStep('choose');
+    if (auto) void open(auto, mail); else setStep('choose');
   };
 
   const sendCode = async (e?: FormEvent) => {
@@ -90,12 +93,13 @@ export function SignInView({ startPath = '/portal', settings = mockSignIn, masji
     if (via === 'phone') {
       const digits = phone.replace(/\D/g, '');
       if (digits.length !== 10) return setError('Enter a 10-digit US mobile number, like (713) 555-0142.');
-      // DEMO: find the member by phone (live: the BE does this and never says whether it found one)
-      const found = Object.values(DEMO_MEMBERS).find((x) => x.phone.replace(/\D/g, '') === digits);
-      setEmail(found?.email ?? `${digits}@phone.invalid`);
+      // DEMO: find the member by phone (live: the API does this and never says whether it found one)
+      const found = svc.DEMO ? Object.values(DEMO_MEMBERS).find((x) => x.phone.replace(/\D/g, '') === digits) : undefined;
+      setEmail(svc.DEMO ? found?.email ?? `${digits}@phone.invalid` : digits);
     } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email.trim())) return setError('Enter a valid email address, like name@example.com.');
     setError(''); setTask('sendCode');
-    try { await svc.sendCode(email.trim() || phone); setStep('code'); setSeconds(30); setCode(''); }
+    try { await svc.sendCode(via === 'phone' && !svc.DEMO ? phone.replace(/\D/g, '') : email.trim() || phone); setStep('code'); setSeconds(30); setCode(''); }
+    catch (err) { setError(err instanceof Error ? err.message : 'We could not send the code. Please try again.'); }
     finally { setTask(null); }
   };
 
@@ -105,8 +109,8 @@ export function SignInView({ startPath = '/portal', settings = mockSignIn, masji
     setError(''); setTask('verifyCode');
     try {
       const r = await svc.verifyCode(email, code);
-      if (!r.ok) return setError(`That code is not right or has expired. Check the ${via === 'phone' ? 'text message' : 'email'} or send a new code.`);
-      await finish(email.trim().toLowerCase());
+      if (!r.ok) return setError(r.error === 'unavailable' ? (r.message ?? 'We could not reach the server.') : `That code is not right or has expired. Check the ${via === 'phone' ? 'text message' : 'email'} or send a new code.`);
+      await finish(email.trim().toLowerCase(), r.dashboards ? { dashboards: r.dashboards, current: r.current } : undefined);
     } finally { setTask(null); }
   };
 
@@ -115,7 +119,12 @@ export function SignInView({ startPath = '/portal', settings = mockSignIn, masji
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email.trim())) return setError('Enter a valid email address, like name@example.com.');
     if (password.length < 8) return setError('Enter your password (at least 8 characters).');
     setError(''); setTask('verifyCode');
-    try { await finish(email.trim().toLowerCase()); } finally { setTask(null); }
+    try {
+      if (svc.DEMO) return await finish(email.trim().toLowerCase());
+      const r = await svc.passwordSignIn(email.trim().toLowerCase(), password);
+      if (!r.ok) return setError(r.message);
+      await finish(email.trim().toLowerCase(), { dashboards: r.dashboards, current: r.current });
+    } finally { setTask(null); }
   };
 
   const onGoogle = (p: GoogleProfile) => { setEmail(p.email); void finish(p.email); };
@@ -142,7 +151,7 @@ export function SignInView({ startPath = '/portal', settings = mockSignIn, masji
                   <FField id="si-email" label="Email address"><input id="si-email" className="input" type="email" autoComplete="username" value={email} onChange={(e) => setEmail(e.target.value)} /></FField>
                   <FField id="si-pass" label="Password" error={error}><input id="si-pass" className="input" type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} {...aria('si-pass', false, error)} /></FField>
                   <button className="btn btn-primary" type="submit" disabled={busy}>{busy ? 'Signing in…' : 'Sign in'}</button>
-                  <p className="jf-test">Demo: any password with 8 or more characters.</p>
+                  {svc.DEMO && <p className="jf-test">Demo: any password with 8 or more characters.</p>}
                 </form>
               ) : (ways.length > 0 && (
                 <form onSubmit={sendCode} noValidate>
@@ -166,7 +175,7 @@ export function SignInView({ startPath = '/portal', settings = mockSignIn, masji
                   <SmartLoader plan={LOADER_PLANS.sendCode} active={task === 'sendCode'} expectedMs={900} />
                 </form>
               ))}
-              <p className="jf-test">Demo: <b>aisha@example.com</b> (member), <b>ad.se1@example.org</b> (member who runs a masjid and represents a ZIP code), <b>president@example.org</b> (Board). Code <b>{svc.DEMO_CODE}</b>.</p>
+              {svc.DEMO && <p className="jf-test">Demo: <b>aisha@example.com</b> (member), <b>ad.se1@example.org</b> (member who runs a masjid and represents a ZIP code), <b>president@example.org</b> (Board). Code <b>{svc.DEMO_CODE}</b>.</p>}
               {settings.staffNote && <p className="si-staff">{settings.staffNote}</p>}
             </div>
           </>)}
@@ -185,7 +194,7 @@ export function SignInView({ startPath = '/portal', settings = mockSignIn, masji
                 <button className="linkish" type="button" onClick={() => { setStep('email'); setError(''); }}>{via === 'phone' ? 'Use a different number' : 'Use a different email'}</button>
               </div>
               <SmartLoader plan={task === 'sendCode' ? LOADER_PLANS.sendCode : LOADER_PLANS.verifyCode} active={busy} expectedMs={800} />
-              <p className="jf-test">Demo: no message is sent. Use code <b>{svc.DEMO_CODE}</b>.</p>
+              {svc.DEMO && <p className="jf-test">Demo: no message is sent. Use code <b>{svc.DEMO_CODE}</b>.</p>}
             </form>
           )}
 

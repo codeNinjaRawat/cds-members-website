@@ -1,6 +1,6 @@
 /**
  * POST /api/auth/dashboards – M4: after signing in, the dashboards this person may open (membership, organization,
- * zone, masjid, ZIP area). Real: BE GET /auth/dashboards from the session cookie – never by an email in the body.
+ * zone, masjid, ZIP area). Live: API GET /auth/me from the session cookie – never by an email in the body.
  * Mock: the demo code proves the sign-in; roles come from Admin › Admins and roles (demo store) or the built-in list.
  */
 import { NextResponse } from 'next/server';
@@ -19,7 +19,7 @@ export async function POST(req: Request) {
   const parsed = Body.safeParse(await req.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: 'invalid' }, { status: 422 });
   if (!apiConfig.useMock) {
-    try { return NextResponse.json(await apiGet<{ dashboards: Dashboard[] }>('/auth/dashboards')); }
+    try { const me = await apiGet<{ dashboards: Dashboard[] }>('/auth/me', [], { session: true }); return NextResponse.json({ dashboards: me.dashboards }); }
     catch { return NextResponse.json({ error: 'unavailable' }, { status: 503 }); }
   }
   if (parsed.data.code !== '123456') return NextResponse.json({ error: 'invalid_code' }, { status: 400 });

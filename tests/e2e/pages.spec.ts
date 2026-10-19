@@ -123,3 +123,40 @@ test.describe('branding (admin › Branding)', () => {
     }
   });
 });
+
+test('plans page explains the membership rules an organization turned on (ISGH preset: Check-o-matic, lifetime by gift)', async ({ page }) => {
+  await page.goto('/membership/plans?plan=isgh-2026');
+  await expect(page.locator('.plan-card')).toHaveCount(4);
+  await expect(page.locator('.plan-card.featured h2')).toHaveText('Check-o-matic (primary and spouse)');
+  await expect(page.locator('.plan-card.featured .price-sm')).toContainText('$10 per month, at least');
+  const rules = page.locator('.plan-rules');
+  await expect(rules).toContainText('reach $40 by June 30, you and your spouse are members');
+  await expect(rules).toContainText('$25,000 or more makes you a Lifetime (individual) member, once the Board confirms it');
+  await expect(rules).toContainText('Household plans cover husband and wife');
+  await page.goto('/membership/plans');
+  await expect(page.locator('.plan-rules')).not.toContainText('month');                   // demo set: those rules are off
+});
+
+test('J3/J1: the sign-up guide and the identity policy are pages of their own, linked from Plans', async ({ page }) => {
+  await page.goto('/membership/plans');
+  await page.getByRole('link', { name: 'how to sign up' }).click();
+  await expect(page.getByRole('heading', { name: 'How to sign up', level: 1 })).toBeVisible();
+  await expect(page.locator('.guide-steps li')).toHaveCount(6);
+  await expect(page.locator('.guide-steps li').nth(2)).toContainText('Verify your identity');
+  await page.getByRole('link', { name: 'Start your application' }).click();
+  await expect(page).toHaveURL(/\/membership\/join/);
+  await page.goto('/membership/identity-policy');
+  await expect(page.getByRole('heading', { name: 'Identity Collection and Verification Policy', level: 1 })).toBeVisible();
+  await expect(page.locator('.policy .wrap > p').first()).toContainText('Why we collect it.');
+  await expect(page.locator('.policy-consent')).toContainText('I have read the Identity Collection');
+});
+
+test('R1 records page: public documents by organization and masjid; nothing members-only', async ({ page }) => {
+  await page.goto('/records');
+  await expect(page.getByRole('heading', { name: 'Records', level: 1 })).toBeVisible();
+  await expect(page.locator('.rec-group').first()).toContainText('Whole organization');
+  await expect(page.locator('.rec-group').first()).toContainText('Annual report 2025');
+  await expect(page.locator('[data-center="North Islamic Center 1"]')).toContainText('Weekend school policy');
+  const txt = await page.locator('.records .wrap').innerText();
+  expect(txt).not.toContain('Audited financial'); expect(txt).not.toContain('Council minutes');
+});

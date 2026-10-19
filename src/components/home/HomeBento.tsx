@@ -7,7 +7,7 @@ import Link from 'next/link';
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import type { Home } from '@/lib/content/home';
 import type { MembershipSettings } from '@/lib/content/membership';
-import { formatUSD } from '@/lib/content/membership';
+import { formatUSD, memberClass } from '@/lib/content/membership';
 import type { NewsItem } from '@/lib/content/pages';
 import { Photo } from '@/components/ui/Photo';
 
@@ -16,7 +16,7 @@ type Props = { bento: Home['bento']; settings: MembershipSettings; news: NewsIte
 const fmtDate = (iso: string) => new Date(iso).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'America/Chicago' });
 
 export function HomeBento({ bento, settings, news }: Props) {
-  const plans = useMemo(() => settings.plans.filter((p) => p.visible && p.memberClass === 'natural'), [settings.plans]);
+  const plans = useMemo(() => settings.plans.filter((p) => p.visible && memberClass(settings.rules, p.memberClass).canVote), [settings.plans, settings.rules]);
   const [planId, setPlanId] = useState(plans.find((p) => p.featured)?.id ?? plans[0]?.id);
   const plan = plans.find((p) => p.id === planId) ?? plans[0];
   const deadline = Date.parse(settings.recordDate);

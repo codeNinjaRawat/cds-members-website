@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { LeadershipView } from '@/components/leadership/LeadershipView';
 import { getOfficials, getOrgStructure } from '@/lib/content/loaders';
-import { publicOfficials } from '@/lib/community/officials';
+import { publicOfficials, publicPastLeadership } from '@/lib/community/officials';
 
 export const metadata: Metadata = { title: 'Leadership', description: 'The elected leaders of ISGH: the Board, Zonal Directors, and the leadership of every Islamic Center. Find your representatives by ZIP code.' };
 
@@ -12,5 +12,5 @@ export default async function LeadershipPage() {
   if (!doc.website.enabled) notFound();
   const zones = map.zones.filter((z) => z.active).map((z) => ({ id: z.id, name: z.name, zips: z.zips }));
   const centers = map.centers.filter((c) => c.active).map((c) => ({ name: c.name, zone: c.zone }));
-  return <LeadershipView people={publicOfficials(doc, new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' }))} zones={zones} centers={centers} findByZip={doc.website.findByZip} />;
+  return <LeadershipView people={publicOfficials(doc, new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' }))} zones={zones} centers={centers} findByZip={doc.website.findByZip} past={publicPastLeadership(doc, (id) => map.zones.find((z) => z.id === id)?.name ?? id)} />;
 }

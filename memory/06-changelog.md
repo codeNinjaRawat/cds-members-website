@@ -28,3 +28,20 @@
 - 2026-10-15 – Groups: getGroups loader, register API checks group membership, group event gate, member home 'Your groups', POST /api/groups/membership.
 - 2026-10-15 – Communication rules (contextOf, MUST_INCLUDE, ALWAYS_ON, renewalEmails, renderHtml) + campaigns contract; /email-preferences page and PUT /api/preferences.
 - 2026-10-15 – Events public copies + seats + refunds + calendar; payments.ts (checkoutTotal, receipts); member home follows card / self-service; sign-in start page.
+
+## 2026-10-18 – Member portal: Records library, Who served, Ask or tell us
+- /portal/records – public + members-only records (recordsFor 'members'), filter "my masjid and the organization" and by kind.
+- /portal/leadership – every past term the organization shows (memberPastLeadership in lib/community/officials.ts: all seats incl.
+  Area Representatives and Secretaries, never member IDs or emails), search by name or seat.
+- /portal/requests – "Ask or tell us": categories from the admin's `work-settings` (publicHelpdesk – public part only), POST /api/tickets
+  (PublicTicketSchema, honeypot, category must be on the website); my requests list (demo: this browser). Member home links all three.
+- Contract lib/community/work.ts (shared with admin and BE). tsc clean. Not yet browser-tested here (the web app needs its own server).
+
+## 2026-10-19 – from the review calls (Agent A)
+- Join form: the "how are you joining" classes come from Membership rules › Member classes (names, blurbs; skipped when one
+  class is offered); plans can be limited to an age range; the voting preview reads the class rule.
+- Portal › Ask or tell us: one-tap "My membership record is wrong" / "My center is wrong" prefilled from the record.
+- Giving: after a monthly gift the thank-you offers membership when the "monthly contributors are members" rule is on
+  (`monthlyOffer`); /give passes it from the membership settings.
+- Contracts (lib/community + lib/content, synced to the admin): membership classes + plan ages, queue routing + follow-ups,
+  role dashboard cards, per-center money, center-change rules, two help-desk categories.

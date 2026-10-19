@@ -1,6 +1,7 @@
 /**
  * POST /api/auth/otp/start – send a 6-digit code by email (or SMS when enabled).
- * Real: BE POST /public/auth/otp/start (rate-limited per email/IP, code hashed, expires, email gateway).
+ * Live: API POST /auth/code/start (rate-limited per address/IP, code hashed, expires, email gateway). The browser in live
+ * mode calls /api/be/auth/code/start directly; this route stays for older pages.
  * Mock: no message is sent; the code is always 123456 and returned as devCode so the flow can be tested.
  */
 import { NextResponse } from 'next/server';
@@ -14,7 +15,7 @@ export async function POST(req: Request) {
   if (!parsed.success) return NextResponse.json({ error: 'invalid_email' }, { status: 422 });
   if (apiConfig.useMock) return NextResponse.json({ sent: true, devCode: '123456' });
   try {
-    await apiPost('/public/auth/otp/start', parsed.data);
+    await apiPost('/auth/code/start', { address: parsed.data.email });
     return NextResponse.json({ sent: true });
   } catch {
     return NextResponse.json({ error: 'unavailable' }, { status: 503 });

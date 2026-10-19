@@ -10,7 +10,7 @@
  */
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
-import { formatUSD, quote, type MembershipSettings } from '@/lib/content/membership';
+import { formatUSD, memberClass, quote, type MembershipSettings } from '@/lib/content/membership';
 import { fmtDay, termFor } from '@/lib/content/renewal';
 import { digits, fieldErrors, makeJoinSchemas, US_STATES, votingPreview } from '@/lib/join/schema';
 import type { LookupResult } from '@/lib/join/residency';
@@ -35,7 +35,7 @@ type Draft = {
     street: string; unit: string; city: string; state: string; zip: string; centerId: string; zoneId: string; borderRequestCenterId: string };
   lookup: LookupResult | null;
   plan: { memberClass: 'natural' | 'associate'; planId: string; years: number; spouse: { firstName: string; lastName: string; email: string } };
-  pledge: { commitments: string[]; pledgeAccepted: boolean; signature: string; emailConsent: boolean; smsConsent: boolean };
+  pledge: { commitments: string[]; pledgeAccepted: boolean; signature: string; emailConsent: boolean; smsConsent: boolean; identityConsent?: boolean };
   payment: { payer: 'self' | 'relative'; payerRelationship: string; payerName: string };
   custom: Answers;                       // answers to the admin's questions (by field id)
   filled: Record<string, string>;        // field → "From your ID" / "From last year" (shown until edited)
@@ -49,7 +49,7 @@ const initialDraft = (planId: string): Draft => ({
   about: { firstName: '', middleName: '', lastName: '', preferredName: '', dob: '', phone: '', street: '', unit: '', city: 'Houston', state: 'TX', zip: '', centerId: '', zoneId: '', borderRequestCenterId: '' },
   lookup: null,
   plan: { memberClass: 'natural', planId, years: 1, spouse: { firstName: '', lastName: '', email: '' } },
-  pledge: { commitments: [], pledgeAccepted: false, signature: '', emailConsent: false, smsConsent: false },
+  pledge: { commitments: [], pledgeAccepted: false, signature: '', emailConsent: false, smsConsent: false, identityConsent: false },
   payment: { payer: 'self', payerRelationship: '', payerName: '' },
   custom: {}, filled: {}, idCaptured: false, mode: 'join',
 });
@@ -80,10 +80,14 @@ export function JoinFlow({ settings, form, initialPlan, mockMode = svc.DEMO, con
   // the admin's live preview can push an unsaved form definition into this page (PreviewBridge → event)
   const [liveForm, setLiveForm] = useState<JoinForm>(form);
   const schemas = useMemo(() => makeJoinSchemas(settings), [settings]);
-  const plans = settings.plans.filter((p) => p.visible && (settings.flags.familyPlan || p.category !== 'household') && (settings.flags.lifePlan || p.term !== 'lifetime'));
+  const allPlans = settings.plans.filter((p) => p.visible && (settings.flags.familyPlan || p.category !== 'household') && (settings.flags.lifePlan || p.term !== 'lifetime'));
+  // D13 – a plan can be for an age range (youth, senior); once the date of birth is known, only matching plans are offered
+  const [ageForPlans, setAgeForPlans] = useState<number | null>(null);
+  const plans = ageForPlans === null ? allPlans : allPlans.filter((p) => !p.ages || ((p.ages.min === undefined || ageForPlans >= p.ages.min) && (p.ages.max === undefined || ageForPlans <= p.ages.max)));
   const defaultPlan = plans.find((p) => p.id === initialPlan) ?? plans.find((p) => p.featured) ?? plans[0];
 
   const [d, setD] = useState<Draft>(() => initialDraft(defaultPlan?.id ?? ''));
+  useEffect(() => { setAgeForPlans(d.about.dob ? ageOnRecord(d.about.dob, new Date().toISOString().slice(0, 10)) : null); }, [d.about.dob]);
   const [restored, setRestored] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [task, setTask] = useState<LoaderKey | null>(null); // which smart loader is running
@@ -159,6 +163,9 @@ export function JoinFlow({ settings, form, initialPlan, mockMode = svc.DEMO, con
   const feeCents = config && coverFees ? feeCover(config, afterCode, payMethod) : 0;
   const finalCents = afterCode + feeCents;
   const offline = payMethod === 'check' || payMethod === 'cash' || payMethod === 'payLater';
+  // V1 – the classes are the organization's words; when only one is offered the question is skipped
+  const offeredClasses = (['natural', 'associate'] as const).map((k) => [k, memberClass(settings.rules, k)] as const).filter(([, c]) => c.offered && plans.some((p) => p.memberClass === c.key)).map(([k, c]) => [k, `As ${/^[aeiou]/i.test(c.label) ? 'an' : 'a'} ${c.label.toLowerCase()}`, c.blurb] as const);
+  useEffect(() => { if (offeredClasses.length && !offeredClasses.some(([k]) => k === d.plan.memberClass)) { const k = offeredClasses[0][0]; const first = plans.find((p) => p.memberClass === k && p.featured) ?? plans.find((p) => p.memberClass === k); set('plan', { memberClass: k, planId: first?.id ?? '', years: 1 }); } }, [offeredClasses.length]); // eslint-disable-line react-hooks/exhaustive-deps
   const preview = votingPreview(settings, { dob: d.about.dob, memberClass: d.plan.memberClass, planId: d.plan.planId, commitments: d.pledge.commitments, state: d.about.state, payer: d.payment.payer });
   const ctx: FormCtx = { planId: d.plan.planId, planCategory: plan?.category ?? '', memberClass: d.plan.memberClass, age: d.about.dob ? ageOnRecord(d.about.dob, new Date().toISOString().slice(0, 10)) : null };
   const ownSteps = (p: Placement): StepDef[] => sectionsAt(liveForm, p).map((sec) => ({ id: `s:${sec.id}`, label: sec.title, section: sec }));
@@ -182,7 +189,7 @@ export function JoinFlow({ settings, form, initialPlan, mockMode = svc.DEMO, con
     if (!r.success) return showErrors({ 'account.email': r.error.issues[0].message });
     setTask('sendCode'); setErrors({});
     try {
-      const j = await svc.sendCode(r.data);
+      const j = await svc.sendCode(r.data, 'join');
       setOtp({ sent: true, code: '', devCode: j.demoCode ?? '', seconds: settings.otp.resendSeconds, existing: false });
       setNotice(`We sent a ${settings.otp.length}-digit code to ${r.data}.`);
     } catch { showErrors({ 'account.email': 'We could not send the code. Check the email address and try again.' }); }
@@ -194,7 +201,7 @@ export function JoinFlow({ settings, form, initialPlan, mockMode = svc.DEMO, con
     if (!/^\d{6}$/.test(otp.code)) return showErrors({ 'account.code': `Enter the ${settings.otp.length}-digit code from the email.` });
     setTask('verifyCode');
     try {
-      const j = await svc.verifyCode(d.account.email, otp.code);
+      const j = await svc.verifyCode(d.account.email, otp.code, 'join');
       if (!j.ok) return showErrors({ 'account.code': 'That code is not right or has expired. Check the email or send a new code.' });
       if (j.existingMember) { setOtp((o) => ({ ...o, existing: true })); return; }
       set('account', { verified: true });
@@ -244,6 +251,7 @@ export function JoinFlow({ settings, form, initialPlan, mockMode = svc.DEMO, con
     if (d.pledge.signature.trim().toLowerCase().replace(/\s+/g, ' ') !== expected.toLowerCase().replace(/\s+/g, ' '))
       errs['pledge.signature'] = `Type your name exactly as entered: ${expected}.`;
     Object.assign(errs, customErrors('pledge'));
+    if (settings.identity.policy.enabled && settings.identity.consentRequired && !d.pledge.identityConsent) errs['pledge.identityConsent'] = `Please read the ${settings.identity.policy.title} and tick the box.`;
     if (Object.keys(errs).length) return showErrors(errs);
     goTo(nextOf('pledge'));
   };
@@ -264,6 +272,7 @@ export function JoinFlow({ settings, form, initialPlan, mockMode = svc.DEMO, con
       account: d.account, about: d.about, plan: { ...d.plan, spouse: plan?.category === 'household' ? d.plan.spouse : undefined },
       pledge: d.pledge, payment: d.payment,
       pledgeVersion: settings.pledge.version, emailConsentVersion: settings.consents.email.version, smsConsentVersion: settings.consents.sms.version,
+      identityConsentVersion: settings.identity.consentRequired && d.pledge.identityConsent ? settings.identity.consentVersion : '',
     };
     const full = schemas.application.safeParse(body);
     if (!full.success) return showErrors(fieldErrors(full.error));
@@ -272,11 +281,17 @@ export function JoinFlow({ settings, form, initialPlan, mockMode = svc.DEMO, con
     // live: POST { ...body, custom: custom.answers, joinFormVersion } – the server checks the same rules again
     setTask('submit');
     try {
-      // DEMO: no API call, no payment. Live: BE re-validates, recomputes price, returns Stripe Checkout URL.
-      const j = await svc.submitApplication(finalCents);
+      // DEMO: no API call, no payment. Live: the API re-validates, recomputes the price and opens the card page.
+      const j = await svc.submitApplication(finalCents, { ...body, custom: custom.answers, joinFormVersion: liveForm.version, checkout: { method: payMethod, coverFees, discountCode: applied?.code || undefined } });
+      try { sessionStorage.removeItem(DRAFT_KEY); } catch { /* */ }
+      if (j.checkoutUrl) { window.location.assign(j.checkoutUrl); return; }
       setResult({ applicationId: j.applicationId, amountCents: j.amountCents, method: payMethod });
       goTo('done');
-    } catch { showErrors({ form: 'We could not submit your application. Nothing was charged. Try again in a minute.' }); }
+    } catch (err) {
+      const fields = (err as { fields?: Record<string, string> }).fields;
+      if (fields && Object.keys(fields).length) showErrors(fields);
+      else showErrors({ form: err instanceof Error && !svc.DEMO ? `${err.message} Nothing was charged.` : 'We could not submit your application. Nothing was charged. Try again in a minute.' });
+    }
     finally { setTask(null); }
   };
 
@@ -312,7 +327,7 @@ export function JoinFlow({ settings, form, initialPlan, mockMode = svc.DEMO, con
     const [street = '', cityLine = ''] = m?.address ?? [];
     const cm = cityLine.match(/^(.*),\s*([A-Z]{2})\s+(\d{5})/);
     const about = { ...d.about, firstName: m?.firstName ?? '', lastName: m?.lastName ?? '', phone: m?.phone ?? '', street, city: cm?.[1] ?? 'Houston', state: cm?.[2] ?? 'TX', zip: cm?.[3] ?? '', centerId: '', zoneId: '' };
-    const lastYear: Answers = { language: 'english', 'children-count': '2', volunteer: ['events-and-iftar'], skills: 'Accountant', languages: ['english', 'urdu'], gender: 'female', 'spouse-same-address': 'yes' };
+    const lastYear: Answers = { 'children-count': '2', volunteer: ['events-and-iftar'], skills: 'Accountant', languages: ['english', 'urdu'], gender: 'female', 'spouse-same-address': 'yes' };
     const custom: Answers = {}; const filled: Record<string, string> = {};
     for (const sec of liveForm.sections) for (const f of sec.fields) if (f.prefill === 'lastYear' && lastYear[f.id] !== undefined) { custom[f.id] = lastYear[f.id]; filled[f.id] = 'From last year'; }
     (['firstName', 'lastName', 'phone', 'street', 'city', 'zip'] as const).forEach((k) => { if (about[k]) filled[`about.${k}`] = 'From last year'; });
@@ -476,6 +491,7 @@ export function JoinFlow({ settings, form, initialPlan, mockMode = svc.DEMO, con
               {err('about.idscan') && <p className="field-error">{err('about.idscan')}</p>}
             </div>
           )}
+          {settings.identity.nameMustMatchId && <p className="jf-idnote" id="f-about-idnote">{settings.identity.nameNote}</p>}
           <div className="grid-2">
             {(['firstName', 'lastName'] as const).map((k) => (
               <Field key={k} id={`f-about-${k}`} label={coreLabel(liveForm, k)} hint={coreHelp(liveForm, k)} tag={filledTag(`about.${k}`)} error={err(`about.${k}`)}>
@@ -560,10 +576,10 @@ export function JoinFlow({ settings, form, initialPlan, mockMode = svc.DEMO, con
       {d.step === 'plan' && (
         <form className="jf-step" aria-labelledby="st-h" onSubmit={nextFromPlan} noValidate>
           <h2 id="st-h" tabIndex={-1} ref={headingRef}>Choose your membership</h2>
-          <fieldset className="jf-fieldset" id="f-plan-memberClass">
+          {offeredClasses.length > 1 && <fieldset className="jf-fieldset" id="f-plan-memberClass">
             <legend>How are you joining?</legend>
             <div className="choice-row">
-              {([['natural', 'As a Muslim member', 'Can vote and hold office when eligible.'], ['associate', 'As an associate member', 'For friends of the community who are not Muslim. No voting or office.']] as const).map(([v, l, h]) => (
+              {offeredClasses.map(([v, l, h]) => (
                 <label key={v} className={`choice${d.plan.memberClass === v ? ' on' : ''}`}>
                   <input type="radio" name="memberClass" value={v} checked={d.plan.memberClass === v}
                     onChange={() => { const first = plans.find((p) => p.memberClass === v && (v !== 'natural' || p.featured)) ?? plans.find((p) => p.memberClass === v); set('plan', { memberClass: v, planId: first?.id ?? '', years: 1 }); }} />
@@ -571,7 +587,7 @@ export function JoinFlow({ settings, form, initialPlan, mockMode = svc.DEMO, con
                 </label>
               ))}
             </div>
-          </fieldset>
+          </fieldset>}
           <fieldset className="jf-fieldset" id="f-plan-planId">
             <legend>Plan</legend>
             <div className="plan-choices">
@@ -656,9 +672,17 @@ export function JoinFlow({ settings, form, initialPlan, mockMode = svc.DEMO, con
           <fieldset className="jf-fieldset">
             <legend>Messages from ISGH</legend>
             <label className="check"><input type="checkbox" checked={d.pledge.emailConsent} onChange={(e) => set('pledge', { emailConsent: e.target.checked })} /> <span>{settings.consents.email.text}</span></label>
-            {settings.flags.sms && <label className="check"><input type="checkbox" checked={d.pledge.smsConsent} onChange={(e) => set('pledge', { smsConsent: e.target.checked })} /> <span>{settings.consents.sms.text}</span></label>}
+            {settings.flags.sms && <label className="check"><input type="checkbox" checked={d.pledge.smsConsent} onChange={(e) => set('pledge', { smsConsent: e.target.checked })} /> <span>{settings.consents.sms.text}{(settings.legal.termsUrl || settings.legal.privacyUrl) && <> See our {settings.legal.termsUrl && <a href={settings.legal.termsUrl} target="_blank" rel="noreferrer">Terms</a>}{settings.legal.termsUrl && settings.legal.privacyUrl ? ' and ' : ''}{settings.legal.privacyUrl && <a href={settings.legal.privacyUrl} target="_blank" rel="noreferrer">Privacy Policy</a>}.</>}</span></label>}
             <p className="hint">We always email receipts and notices about your membership.</p>
           </fieldset>
+          {settings.identity.policy.enabled && (
+            <fieldset className="jf-fieldset" id="f-pledge-identityConsent">
+              <legend>Identity check</legend>
+              <p className="hint">Read the <a href={settings.identity.policy.url || '/membership/identity-policy'} target="_blank" rel="noreferrer">{settings.identity.policy.title}</a> – what we collect, why, and how it is kept.</p>
+              {settings.identity.consentRequired && <label className="check"><input type="checkbox" checked={!!d.pledge.identityConsent} onChange={(e) => set('pledge', { identityConsent: e.target.checked })} aria-invalid={!!err('pledge.identityConsent') || undefined} /> <span>{settings.identity.consentText}</span></label>}
+              {err('pledge.identityConsent') && <p className="field-error">{err('pledge.identityConsent')}</p>}
+            </fieldset>
+          )}
           <CustomSections sections={sectionsAt(liveForm, 'pledge')} answers={d.custom} ctx={ctx} errors={errors} onChange={setCustom} filled={d.filled} />
           <StepNav onBack={() => goTo(prevOf('pledge'))} busy={busy} onSave={liveForm.helpers.saveForLater ? saveForLater : undefined} />
         </form>

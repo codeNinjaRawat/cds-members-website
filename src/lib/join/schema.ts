@@ -4,7 +4,7 @@
  * Messages follow memory/09-content-style-guide.md (say what is wrong + how to fix).
  */
 import { z } from 'zod';
-import { ageOn, type MembershipSettings } from '@/lib/content/membership';
+import { ageOn, memberClass, type MembershipSettings } from '@/lib/content/membership';
 
 export const US_STATES = ['AL','AK','AZ','AR','CA','CO','CT','DE','DC','FL','GA','HI','ID','IL','IN','IA','KS','KY','LA','ME','MD','MA','MI','MN','MS','MO','MT','NE','NV','NH','NJ','NM','NY','NC','ND','OH','OK','OR','PA','RI','SC','SD','TN','TX','UT','VT','VA','WA','WV','WI','WY'] as const;
 
@@ -71,6 +71,7 @@ export function makeJoinSchemas(settings: MembershipSettings, today = todayISO(s
     signature: z.string().trim().min(3, 'Type your full name to sign.'),
     emailConsent: z.boolean(),
     smsConsent: z.boolean(),
+    identityConsent: z.boolean().optional(),
   });
 
   const payment = z.object({
@@ -85,7 +86,7 @@ export function makeJoinSchemas(settings: MembershipSettings, today = todayISO(s
     }
   });
 
-  const application = z.object({ account, about, plan, pledge, payment, pledgeVersion: z.string(), emailConsentVersion: z.string(), smsConsentVersion: z.string() })
+  const application = z.object({ account, about, plan, pledge, payment, pledgeVersion: z.string(), emailConsentVersion: z.string(), smsConsentVersion: z.string(), identityConsentVersion: z.string().optional() })
     .superRefine((v, ctx) => {
       const full = `${v.about.firstName} ${v.about.lastName}`.toLowerCase().replace(/\s+/g, ' ');
       if (v.pledge.signature.toLowerCase().replace(/\s+/g, ' ') !== full)
@@ -109,7 +110,9 @@ export function fieldErrors(err: z.ZodError): Record<string, string> {
 export function votingPreview(settings: MembershipSettings, input: { dob: string; memberClass: string; planId: string; commitments: string[]; state: string; payer: string }, today = todayISO(settings.timezone)) {
   const plan = settings.plans.find((p) => p.id === input.planId);
   const reasons: string[] = [];
-  if (!plan?.votingEligible || input.memberClass === 'associate') reasons.push('Associate members do not vote or hold office.');
+  const cls = memberClass(settings.rules, input.memberClass);
+  if (!cls.canVote) reasons.push(`${cls.label}s do not vote or hold office.`);
+  else if (!plan?.votingEligible) reasons.push(`The ${plan?.name ?? 'chosen'} plan does not include a vote.`);
   if (today > settings.recordDate.slice(0, 10)) reasons.push(`The ${settings.year} voting deadline (June 30) has passed. Your membership still starts now.`);
   if (input.dob && ageOn(input.dob, settings.recordDate) < settings.minVotingAge) reasons.push(`You must be ${settings.minVotingAge} by June 30 to vote.`);
   if (input.commitments.length === 0) reasons.push('Choose at least one commitment to be eligible to vote.');

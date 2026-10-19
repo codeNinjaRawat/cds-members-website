@@ -1,13 +1,16 @@
 'use client';
 /**
  * Member directory (WildApricot: Member directory + privacy). Only members who opted in are listed; which details
- * show comes from Admin › Settings › Configuration. DEMO: sample people (live: GET /member/directory, opted-in only).
+ * show comes from Admin › Settings › Configuration. Demo: sample people. Live: GET /member/directory (or /public/directory).
  */
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import type { OrgConfig } from '@/lib/community/org-config';
 import { directoryCard, type DirectoryPerson } from '@/lib/community/member-records';
 import { findMember, getSessionEmail, SESSION_EVENT } from '@/lib/demo/demo-member';
+import { LIVE, be } from '@/lib/live/live';
+
+type Card = NonNullable<ReturnType<typeof directoryCard>>;
 
 const SAMPLE: DirectoryPerson[] = [
   { name: 'Aisha Rahman', center: 'Southwest Islamic Center 1', phone: '(713) 555-0142', email: 'aisha@example.com', listed: true, values: { profession: 'Pharmacist' } },
@@ -25,16 +28,22 @@ export function MemberDirectory({ config }: { config: OrgConfig }) {
   const [q, setQ] = useState('');
   const [listed, setListed] = useState(false);
   useEffect(() => { const read = () => setSignedIn(!!findMember(getSessionEmail())); read(); window.addEventListener(SESSION_EVENT, read); return () => window.removeEventListener(SESSION_EVENT, read); }, []);
+  const [liveCards, setLiveCards] = useState<Card[] | null>(null);
+  useEffect(() => {   // live: the server lists only people who chose to be listed, with the fields the settings allow
+    if (!LIVE || signedIn === null) return;
+    void be<{ people: Card[]; listed?: boolean }>('GET', signedIn ? 'member/directory' : 'public/directory').then((r) => { setLiveCards(r.ok ? r.data.people : []); if (r.ok && typeof r.data.listed === 'boolean') setListed(r.data.listed); });
+  }, [signedIn]);
+  const choose = (v: boolean) => { setListed(v); if (LIVE) void be<{ listed: boolean }>('PUT', 'member/directory', { listed: v }).then((r) => { if (r.ok) void be<{ people: Card[] }>('GET', 'member/directory').then((x) => x.ok && setLiveCards(x.data.people)); else setListed(!v); }); };
   if (d.audience === 'members' && signedIn === false) return (
     <article className="cms-page"><div className="wrap narrow"><h1>Member directory</h1><p>The directory is for members. <Link href="/sign-in?next=/portal/directory">Sign in</Link> to see it.</p></div></article>
   );
   const viewer = signedIn ? 'member' : 'public';
-  const cards = SAMPLE.map((p) => directoryCard(config, p, viewer)).filter((c): c is NonNullable<typeof c> => !!c);
+  const cards = LIVE ? liveCards ?? [] : SAMPLE.map((p) => directoryCard(config, p, viewer)).filter((c): c is NonNullable<typeof c> => !!c);
   const rows = cards.filter((p) => !q || `${p.name} ${p.center ?? ''} ${p.extra.map((x) => x.value).join(' ')}`.toLowerCase().includes(q.toLowerCase()));
   return (
     <article className="cms-page"><div className="wrap">
       <header className="cms-head"><h1>Member directory</h1><p className="intro">Members who chose to be listed. {d.optIn ? 'You choose whether you appear.' : ''}</p></header>
-      {d.optIn && signedIn && <label className="check dir-optin"><input type="checkbox" checked={listed} onChange={(e) => setListed(e.target.checked)} /> <span>List me in the directory (demo – not saved)</span></label>}
+      {d.optIn && signedIn && <label className="check dir-optin"><input type="checkbox" checked={listed} onChange={(e) => choose(e.target.checked)} /> <span>List me in the directory{LIVE ? '' : ' (demo – not saved)'}</span></label>}
       {!signedIn && <p className="muted">Phone numbers and emails are shown only to signed-in members.</p>}
       <div className="field"><label htmlFor="dir-q">Search by name, center or details</label><input id="dir-q" className="input" value={q} onChange={(e) => setQ(e.target.value)} /></div>
       <ul className="dir-list">{rows.map((p) => (
@@ -42,7 +51,7 @@ export function MemberDirectory({ config }: { config: OrgConfig }) {
           {p.phone && <a href={`tel:${p.phone.replace(/\D/g, '')}`}>{p.phone}</a>}{p.email && <a href={`mailto:${p.email}`}>{p.email}</a>}</li>
       ))}</ul>
       {!rows.length && <p>No one matches “{q}”.</p>}
-      <p className="samples-note">Sample people – the real directory lists only members who opted in.</p>
+      {!LIVE && <p className="samples-note">Sample people – the real directory lists only members who opted in.</p>}
     </div></article>
   );
 }

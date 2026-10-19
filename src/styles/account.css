@@ -176,3 +176,22 @@
 .p-masjid-people dt { color: var(--ink-2, inherit); font-size: .9rem; }
 .p-masjid-people dd { margin: 0; }
 @media (max-width: 560px) { .p-masjid-people div { grid-template-columns: 1fr; gap: .1rem; } }
+
+/* Member portal: records, who served, ask or tell us (2026-10-18) */
+.pw-filter { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; margin-bottom: 1.2rem; }
+.pw-select { width: auto; min-width: 11rem; }
+.pw-search { display: block; margin-bottom: 1.2rem; }
+.pw-year { margin: 1.4rem 0; }
+.pw-year h2 { font-size: 1.15rem; margin-bottom: .5rem; }
+.pw-table { width: 100%; border-collapse: collapse; font-size: .95rem; }
+.pw-table th, .pw-table td { text-align: left; padding: .45rem .5rem; border-bottom: 1px solid var(--border); }
+.pw-table th { font-size: .8rem; text-transform: uppercase; letter-spacing: .04em; color: var(--muted-foreground, inherit); }
+.pw-hint { font-size: .9rem; color: var(--muted-foreground, inherit); margin: -.2rem 0 .8rem; }
+.pw-sent { margin-top: 2rem; }
+.pw-list { list-style: none; padding: 0; margin: .6rem 0; display: grid; gap: .5rem; }
+.pw-list li { display: grid; grid-template-columns: 1fr auto; gap: .1rem 1rem; padding: .7rem .9rem; border: 1px solid var(--border); border-radius: 12px; background: var(--card); }
+.pw-list span { grid-column: 1; font-size: .85rem; color: var(--muted-foreground, inherit); }
+.pw-list em { grid-row: 1 / span 2; grid-column: 2; align-self: center; font-style: normal; font-weight: 600; font-size: .85rem; }
+.pw-back { margin-top: 2rem; }
+.hp { position: absolute; left: -10000px; width: 1px; height: 1px; overflow: hidden; }
+.done-note { padding: .7rem .9rem; border-radius: 10px; background: color-mix(in srgb, var(--primary, #0E5A45) 12%, transparent); margin-bottom: 1rem; }

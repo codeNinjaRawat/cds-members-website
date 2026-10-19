@@ -12,8 +12,11 @@
  *   (or per browser: localStorage 'isgh-demo-speed')
  */
 import { mockLookup, type LookupResult } from '@/lib/join/residency';
+import { LIVE, be } from '@/lib/live/live';
+import type { Dashboard } from '@/lib/community/sign-in';
 
-export const DEMO = true;
+/** Demo mode (no API). In live mode (NEXT_PUBLIC_LIVE_API=1) every function below calls the API through /api/be. */
+export const DEMO = !LIVE;
 export const DEMO_CODE = '123456';
 
 /** Reviewers can switch speed in the browser too: localStorage 'isgh-demo-speed' = fast | real | instant */
@@ -28,46 +31,109 @@ const ref = (prefix: string) => `${prefix}-${Math.floor(100000 + Math.random() *
 /** Emails that pretend to already be members (to show the "sign in instead" path). */
 const EXISTING = ['member@example.com', 'aisha@example.com'];
 
-export async function sendCode(email: string) {
+/** `join`: proves the email for a membership application · `signin`: a sign-in code (email or phone). */
+export type CodePurpose = 'signin' | 'join';
+let joinToken = '';
+export const liveJoinToken = () => joinToken || (() => { try { return sessionStorage.getItem('ms-join-token') ?? ''; } catch { return ''; } })();
+
+export async function sendCode(email: string, purpose: CodePurpose = 'signin') {
+  if (LIVE) {
+    const r = purpose === 'join' ? await be<{ devCode?: string }>('POST', 'public/join/email/start', { email }) : await be<{ devCode?: string }>('POST', 'auth/code/start', { address: email });
+    if (!r.ok) throw new Error(r.message);
+    return { sent: true, demoCode: r.data.devCode ?? '', email };
+  }
   await wait(850);
   return { sent: true, demoCode: DEMO_CODE, email };
 }
 
-export async function verifyCode(email: string, code: string) {
+export async function verifyCode(email: string, code: string, purpose: CodePurpose = 'signin'): Promise<{ ok: true; existingMember: boolean; dashboards?: Dashboard[]; current?: number } | { ok: false; error: 'invalid_code' | 'unavailable'; message?: string }> {
+  if (LIVE) {
+    if (purpose === 'join') {
+      const r = await be<{ joinToken: string }>('POST', 'public/join/email/verify', { email, code });
+      if (!r.ok) return { ok: false, error: r.status === 0 ? 'unavailable' : 'invalid_code', message: r.message };
+      joinToken = r.data.joinToken; try { sessionStorage.setItem('ms-join-token', joinToken); } catch { /* */ }
+      return { ok: true, existingMember: false };
+    }
+    const r = await be<{ dashboards: Dashboard[]; current: number }>('POST', 'auth/code/verify', { address: email, code });
+    if (!r.ok) return { ok: false, error: r.status === 0 ? 'unavailable' : 'invalid_code', message: r.message };
+    return { ok: true, existingMember: r.data.dashboards.some((d) => d.kind === 'member'), dashboards: r.data.dashboards, current: r.data.current };
+  }
   await wait(650);
   if (code !== DEMO_CODE) return { ok: false as const, error: 'invalid_code' as const };
   return { ok: true as const, existingMember: EXISTING.includes(email.trim().toLowerCase()) };
 }
 
+/** Live: email + password (when the organization allows passwords). */
+export async function passwordSignIn(email: string, password: string) {
+  const r = await be<{ dashboards: Dashboard[]; current: number }>('POST', 'auth/password', { email, password });
+  return r.ok ? { ok: true as const, dashboards: r.data.dashboards, current: r.data.current } : { ok: false as const, message: r.message };
+}
+/** Live: switch the session to another dashboard (re-checked by the API). */
+export async function openDashboard(index: number) { return (await be('POST', 'auth/dashboard', { index })).ok; }
+
 export async function lookupAddress(a: { street: string; city: string; state: string; zip: string }): Promise<LookupResult> {
+  if (LIVE) {
+    const r = await be<{ zone: string | null; zone_name: string | null; center: string | null; center_name: string | null; nearest: { id: string; name: string; miles: number }[] }>('GET', `public/place?zip=${encodeURIComponent(a.zip.slice(0, 5))}`);
+    if (!r.ok) throw new Error(r.message);
+    const d = r.data;
+    return { inServiceArea: !!d.center, zone: d.zone ? { id: d.zone, name: d.zone_name ?? d.zone } : null, center: d.center ? { id: d.center, name: d.center_name ?? d.center } : null,
+      nearBorder: false, alternatives: (d.nearest ?? []).map((n) => ({ id: n.id, name: n.name, zoneName: '', miles: n.miles })), estimate: false };
+  }
   await wait(1100);
   return mockLookup(a);
 }
 
-export async function submitApplication(totalCents: number) {
+export type ApplicationAnswer = { applicationId: string; amountCents: number; payment: { mode?: string; method?: string | null; status: string; paymentIds?: string[]; checkout?: { kind: 'dues'; paymentIds: string[] } | null; next?: string } ; checkoutUrl?: string };
+/** Live: `body` is the whole application ({account, about, plan, pledge, payment, custom, checkout, …}); the API checks it all again. */
+export async function submitApplication(totalCents: number, body?: Record<string, unknown>): Promise<ApplicationAnswer> {
+  if (LIVE) {
+    const r = await be<ApplicationAnswer>('POST', 'public/membership/applications', { ...body, joinToken: liveJoinToken() });
+    if (!r.ok) throw Object.assign(new Error(r.message), { fields: (r.data.detail ?? {}) as Record<string, string>, status: r.status });
+    joinToken = ''; try { sessionStorage.removeItem('ms-join-token'); } catch { /* */ }
+    const co = r.data.payment?.checkout;
+    if (co) { const c = await be<{ url: string }>('POST', 'public/checkout', co); if (c.ok) return { ...r.data, checkoutUrl: c.data.url }; }
+    return r.data;
+  }
   await wait(2400);
   return { applicationId: ref('APP-2027'), amountCents: totalCents, payment: { mode: 'demo', status: 'paid' } };
 }
 
-export async function subscribe(email: string) {
+export async function subscribe(email: string, consentText = 'Send me news and announcements by email. I can unsubscribe at any time.') {
+  if (LIVE) { const r = await be('POST', 'public/newsletter', { email, consent: true, consentText }); if (!r.ok) throw new Error(r.message); return { status: 'pending_confirmation', email }; }
   await wait(900);
   return { status: 'pending_confirmation', email };
 }
 
 export async function sendFeedback(input: { rating: number; topic: string; comment: string }) {
+  if (LIVE) {
+    if (!input.comment.trim()) return { reference: '', ...input };   // a "was this page helpful?" click: nothing to file (page analytics later)
+    const r = await be<{ id: string }>('POST', 'public/tickets', { kind: 'feedback', anonymous: true, title: `Feedback: ${input.topic}`.slice(0, 140), detail: `Rating ${input.rating}/5\n\n${input.comment}` });
+    if (!r.ok) throw new Error(r.message);
+    return { reference: r.data.id, ...input };
+  }
   await wait(1000);
   return { reference: ref('FB'), ...input };
 }
 
-export async function fileComplaint(input: { category: string; anonymous: boolean }) {
+export async function fileComplaint(input: { category: string; anonymous: boolean; title?: string; detail?: string; name?: string; email?: string; phone?: string; center?: string }) {
+  if (LIVE) {
+    const r = await be<{ id: string }>('POST', 'public/tickets', { kind: 'complaint', anonymous: input.anonymous, title: (input.title || `Complaint: ${input.category}`).slice(0, 140), detail: input.detail ?? '', name: input.name, email: input.email, phone: input.phone, center: input.center });
+    if (!r.ok) throw new Error(r.message);
+    return { reference: r.data.id, category: input.category, respondWithinDays: input.anonymous ? null : 5 };
+  }
   await wait(1500);
   return { reference: ref('CMP'), category: input.category, respondWithinDays: input.anonymous ? null : 5 };
 }
 
 /** Privacy-first public check: needs member ID + last name + ZIP; returns only active / not found. */
 export async function verifyMembership(input: { memberId: string; lastName: string; zip: string }) {
+  if (LIVE) {
+    const r = await be<{ found: true; status: 'Active'; validThrough: string; votingEligible: boolean } | { found: false }>('POST', 'public/members/verify', input);
+    if (!r.ok) throw new Error(r.message);
+    return r.data;
+  }
   await wait(1200);
-  const ok = /^HOU-\d{6}$/i.test(input.memberId.trim()) && input.lastName.trim().length > 1 && /^\d{5}$/.test(input.zip);
+  const ok = /^[A-Z]{2,5}-\d{4,8}$/i.test(input.memberId.trim()) && input.lastName.trim().length > 1 && /^\d{5}$/.test(input.zip);
   return ok && !input.memberId.endsWith('0')
     ? { found: true as const, status: 'Active' as const, validThrough: '12/31/2027', votingEligible: true }
     : { found: false as const };
@@ -122,7 +188,13 @@ export async function googleSignIn(account: (typeof DEMO_GOOGLE_ACCOUNTS)[number
 }
 
 /* ---------- Give to a need (DEMO – no payment) ---------- */
-export async function give(input: { needId: string; amountCents: number; fund: 'zakat' | 'sadaqah'; monthly: boolean; anonymous: boolean }) {
+export async function give(input: { needId: string; amountCents: number; fund: 'zakat' | 'sadaqah'; monthly: boolean; anonymous: boolean; name?: string; email?: string }) {
+  if (LIVE) {
+    const r = await be<{ url: string }>('POST', 'public/checkout', { kind: 'gift', amountCents: input.amountCents, fund: input.fund, campaignId: '', monthly: input.monthly, anonymous: input.anonymous, showName: !input.anonymous, name: input.name ?? '', email: input.email ?? '' });
+    if (!r.ok) throw new Error(r.message);
+    window.location.assign(r.data.url);   // the card page (Stripe, or the test page while no key is set)
+    return { receipt: '', ...input };
+  }
   await wait(2200);
   return { receipt: ref('GIFT'), ...input };
 }

@@ -1,5 +1,5 @@
 /**
- * POST /api/newsletter – validates and forwards to BE: POST /public/newsletter/subscriptions
+ * POST /api/newsletter – validates and forwards to the API: POST /public/newsletter
  * BE stores consent (text + timestamp + IP), sends the double opt-in email via the email gateway (see memory/20-integrations.md).
  * Mock mode: accepts and logs nothing personal.
  */
@@ -22,7 +22,7 @@ export async function POST(req: Request) {
   if (apiConfig.useMock) return NextResponse.json({ status: 'pending_confirmation' }, { status: 202 });
 
   try {
-    await apiPost('/public/newsletter/subscriptions', { ...parsed.data, source: 'website-footer' });
+    await apiPost('/public/newsletter', { ...parsed.data, source: 'website-footer' });
     return NextResponse.json({ status: 'pending_confirmation' }, { status: 202 });
   } catch {
     return NextResponse.json({ error: 'unavailable' }, { status: 503 });

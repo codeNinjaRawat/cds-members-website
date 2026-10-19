@@ -7,6 +7,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { getGroups } from '@/lib/content/loaders';
 import { memberAction } from '@/lib/community/groups';
+import { apiCall, apiConfig } from '@/lib/api/client';
 
 const Body = z.object({
   groupId: z.string().max(40), action: z.enum(['join', 'request', 'leave']),
@@ -17,6 +18,13 @@ const no = (message: string, status = 422) => NextResponse.json({ message }, { s
 export async function POST(req: Request) {
   let json: unknown; try { json = await req.json(); } catch { return no('Invalid request.', 400); }
   const p = Body.safeParse(json); if (!p.success) return no('Please check the request.');
+  if (!apiConfig.useMock) {   // live: the API decides from the member's real groups (the browser's list is ignored)
+    const r = await apiCall('POST', `/member/groups/${encodeURIComponent(p.data.groupId)}/${p.data.action}`, {}).catch(() => null);
+    if (!r) return no('We could not reach the server – please try again.', 503);
+    if (r.status >= 400) return no((r.body as { error?: string })?.error ?? 'Not possible.', r.status);
+    const status = p.data.action === 'join' ? 'joined' : p.data.action === 'leave' ? 'left' : 'requested';
+    return NextResponse.json({ status, message: status === 'requested' ? 'Your request was sent.' : status === 'joined' ? 'You joined the group.' : 'You left the group.' });
+  }
   const doc = await getGroups();
   const g = doc.enabled ? doc.groups.find((x) => x.id === p.data.groupId) : undefined;
   if (!g || g.archived || !g.showInProfile) return no('Group not found.', 404);

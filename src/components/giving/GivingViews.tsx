@@ -11,6 +11,7 @@ import { Photo } from '@/components/ui/Photo';
 import { formatUSD } from '@/lib/content/membership';
 import { VerseBand } from './VerseBand';
 import { NeedsGrid } from './NeedsGrid';
+import type { MonthlyOffer } from '@/lib/content/membership';
 
 const KIND: Record<Impact['kind'], string> = { program: 'Program', event: 'Community response', story: 'Story' };
 
@@ -107,7 +108,7 @@ function GivingHero({ eyebrow, title, intro, children, stats, statsTitle }: { ey
   );
 }
 
-export function GiveView({ giving }: { giving: Giving }) {
+export function GiveView({ giving, offer = null }: { giving: Giving; offer?: MonthlyOffer | null }) {
   const needs = visible(giving.needs, giving);
   const impact = visible(giving.impact, giving).filter((i) => !i.sample).slice(0, 3);
   return (
@@ -129,7 +130,7 @@ export function GiveView({ giving }: { giving: Giving }) {
       </section>
       <section className="wrap giving-block" id="needs" aria-labelledby="gn-h">
         <div className="sec-head"><h2 className="sec-title" id="gn-h">Who still needs help</h2><Link className="btn btn-outline" href="/needs">All needs</Link></div>
-        <NeedsGrid needs={needs} showProgress={giving.flags.showProgress} limit={6} />
+        <NeedsGrid needs={needs} showProgress={giving.flags.showProgress} limit={6} offer={offer} />
       </section>
       <section className="wrap giving-block" aria-labelledby="gi-h">
         <div className="sec-head"><h2 className="sec-title" id="gi-h">What your giving already did</h2><Link className="btn btn-outline" href="/impact">How we helped</Link></div>

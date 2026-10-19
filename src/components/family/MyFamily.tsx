@@ -1,6 +1,6 @@
 'use client';
 /**
- * Member portal › My family tree (DEMO, browser only; live: GET/PUT /member/family).
+ * Member portal › My family tree. Demo: this browser only. Live: GET/PUT /member/family (heritage stays private).
  * The member keeps their family here: who is a member, who can vote, who can join soon, and – if they wish – older
  * generations as family history. Only the member sees the whole tree; relatives who are members are linked only after
  * they accept; ISGH staff see the membership family only, never the history.
@@ -15,8 +15,10 @@ import {
 import { DEMO_FAMILIES } from '@/lib/family/demo-family';
 import { findMember, getSessionEmail, SESSION_EVENT, type DemoMember } from '@/lib/demo/demo-member';
 import { LoaderMark } from '@/components/ui/SmartLoader';
+import { LIVE, be } from '@/lib/live/live';
 
-const RECORD_DATE = '2027-06-30'; // admin: Settings › Voting › record date
+/** The next record date (June 30 – Bylaws default; live: the organization's rules decide eligibility on the server). */
+const RECORD_DATE = (() => { const t = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' }); const y = Number(t.slice(0, 4)); return `${t.slice(5) <= '06-30' ? y : y + 1}-06-30`; })();
 const todayCT = () => new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' });
 const key = (email: string) => `isgh-family:${email}`;
 
@@ -29,18 +31,25 @@ export function MyFamily() {
   const [member, setMember] = useState<DemoMember | null | undefined>(undefined);
   useEffect(() => { const read = () => setMember(findMember(getSessionEmail())); read(); window.addEventListener(SESSION_EVENT, read); return () => window.removeEventListener(SESSION_EVENT, read); }, []);
   useEffect(() => { if (member === null) window.location.replace('/sign-in?next=/portal/family'); }, [member]);
-  if (!member) return <div className="portal-loading wrap" role="status"><LoaderMark size={44} /><p>{member === null ? 'Taking you to sign in…' : 'Loading your family…'}</p></div>;
-  return <FamilyPage m={member} />;
+  const [liveFamily, setLiveFamily] = useState<Family | null>(null);
+  useEffect(() => { if (LIVE && member) void be<{ family: Family }>('GET', 'member/family').then((r) => setLiveFamily(r.ok ? r.data.family : { rootId: 'me', people: [{ id: 'me', first: member.firstName, last: member.lastName, sex: 'm' }], unions: [] })); }, [member]);
+  if (!member || (LIVE && !liveFamily)) return <div className="portal-loading wrap" role="status"><LoaderMark size={44} /><p>{member === null ? 'Taking you to sign in…' : 'Loading your family…'}</p></div>;
+  return <FamilyPage m={member} initial={liveFamily ?? undefined} />;
 }
 
-function FamilyPage({ m }: { m: DemoMember }) {
-  const [family, setFamilyState] = useState<Family>(() => loadFamily(m.email));
+function FamilyPage({ m, initial }: { m: DemoMember; initial?: Family }) {
+  const [family, setFamilyState] = useState<Family>(() => initial ?? loadFamily(m.email));
   const [layer, setLayer] = useState<'membership' | 'whole'>('membership');
   const [sel, setSel] = useState<string | null>(family.rootId);
   const [mode, setMode] = useState<null | 'add' | 'edit'>(null);
   const [toast, setToast] = useState('');
   const today = todayCT();
-  const save = (f: Family, msg?: string) => { setFamilyState(f); try { localStorage.setItem(key(m.email), JSON.stringify(f)); } catch { /* */ } if (msg) { setToast(msg); window.setTimeout(() => setToast(''), 4000); } };
+  const say = (msg: string) => { setToast(msg); window.setTimeout(() => setToast(''), 4000); };
+  const save = (f: Family, msg?: string) => {
+    setFamilyState(f);
+    if (LIVE) { void be<{ family: Family }>('PUT', 'member/family', { family: f }).then((r) => { if (r.ok) { setFamilyState(r.data.family); if (msg) say(msg); } else say(`Not saved: ${r.message}`); }); return; }   // the server keeps only links it made
+    try { localStorage.setItem(key(m.email), JSON.stringify(f)); } catch { /* */ } if (msg) say(msg);
+  };
   const p = family.people.find((x) => x.id === sel) ?? null;
   const tips = useMemo(() => insights(family, today, RECORD_DATE, layer), [family, today, layer]);
 

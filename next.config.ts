@@ -8,6 +8,10 @@ const FRAMERS = [ADMIN_ORIGIN, `https://*.${BASE}`, process.env.NODE_ENV === 'pr
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  // development on this PC: the organization is picked by the address (isgh.localhost, isgh-admin.localhost)
+  allowedDevOrigins: ['*.localhost'],
+  // live mode for the browser code: the same switch as the server (ISGH_USE_MOCK_API=false → forms and member pages use /api/be/*)
+  env: { NEXT_PUBLIC_LIVE_API: process.env.ISGH_USE_MOCK_API === 'false' ? '1' : '' },
   poweredByHeader: false,
   // Demo photos load from the Pexels CDN (free license). Remove once images are self-hosted / in the media library.
   images: { remotePatterns: [{ protocol: 'https', hostname: 'images.pexels.com', pathname: '/photos/**' }] },

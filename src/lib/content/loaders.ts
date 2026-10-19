@@ -2,7 +2,10 @@
 import 'server-only';
 import { cache } from 'react';
 import { z } from 'zod';
-import { loadPublic } from '@/lib/api/load-public';
+import { RecordsSchema, mockRecords } from '@/lib/community/records';
+import { WorkSettingsSchema, mockWorkSettings } from '@/lib/community/work';
+import { loadPublic, siteDoc } from '@/lib/api/load-public';
+import { apiConfig } from '@/lib/api/client';
 import { readDemoStore } from '@/lib/api/demo-store';
 import { HomeSchema, mockHome } from './home';
 import { GivingSchema, mockGiving } from './giving';
@@ -32,12 +35,12 @@ export const getNews = cache(async (limit = 3) =>
 const SLUG_RE = /^[a-z0-9-]+(\/[a-z0-9-]+)*$/;
 export const getPage = cache(async (slug: string): Promise<Page | null> => {
   if (!SLUG_RE.test(slug)) return null;
-  const stored = await readDemoStore('pages', z.record(z.string(), PageSchema), mockPages); // admin demo publish (or the org's starter pages)
-  const mock = (stored ?? mockPages)[slug] ?? null;
-  if (!mock && (process.env.ISGH_USE_MOCK_API ?? 'true') === 'true') return null;
-  return loadPublic(`/public/pages/${slug}`, PageSchema.nullable(), mock, [`page:${slug}`]);
+  const Pages = z.record(z.string(), PageSchema);
+  if (!apiConfig.useMock) return (await siteDoc('pages', Pages))[slug] ?? null;   // API mode: the organization's pages document
+  const stored = await readDemoStore('pages', Pages, mockPages); // admin demo publish (or the org's starter pages)
+  return (stored ?? mockPages)[slug] ?? null;
 });
-export const listPageSlugs = async () => Object.keys((await readDemoStore('pages', z.record(z.string(), PageSchema), mockPages)) ?? mockPages);
+export const listPageSlugs = async () => (!apiConfig.useMock ? [] : Object.keys((await readDemoStore('pages', z.record(z.string(), PageSchema), mockPages)) ?? mockPages));
 
 /** Admin › Events – the organization's events (public list, detail and registration) */
 export const getEvents = cache(() => loadPublic('/public/events', EventsSchema, mockEvents, ['events'], 'events'));
@@ -53,6 +56,9 @@ export const getOrgStructure = cache(() => loadPublic('/public/centers', OrgStru
 /** Admin › Prayer times – calculation, iqamah rules per center, special prayers */
 export const getPrayerTimes = cache(() => loadPublic('/public/prayer-times', PrayerSettingsSchema, mockPrayerSettings, ['prayer-times'], 'prayer-times'));
 /** Admin › Fundraising – campaigns and approved personal pages (live: GET /public/campaigns with totals) */
+/** Help desk settings: only the public part (publicHelpdesk) may reach a browser. */
+export const getWorkSettings = cache(() => loadPublic('/public/helpdesk', WorkSettingsSchema, mockWorkSettings, ['work-settings'], 'work-settings'));
+export const getRecords = cache(() => loadPublic('/public/records', RecordsSchema, mockRecords, ['records'], 'records'));
 export const getFundraising = cache(() => loadPublic('/public/campaigns', FundraisingSchema, mockFundraising, ['fundraising'], 'fundraising'));
 /** Admin › Settings › Sign-in – which sign-in methods show and what each dashboard is called (M4) */
 export const getSignIn = cache(() => loadPublic('/public/sign-in', SignInSchema, mockSignIn, ['sign-in'], 'sign-in'));

@@ -4,14 +4,19 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { BODIES, fmt, type memberMinutes } from '@/lib/community/minutes';
 import { findMember, getSessionEmail, SESSION_EVENT } from '@/lib/demo/demo-member';
+import { memberMinutes as toItems, type Meeting } from '@/lib/community/minutes';
+import { LIVE, be } from '@/lib/live/live';
 
 type Item = ReturnType<typeof memberMinutes>[number];
-export function MeetingMinutes({ items }: { items: Item[] }) {
+export function MeetingMinutes({ items: demo }: { items: Item[] }) {
   const [ok, setOk] = useState<boolean | null>(null);
+  const [liveItems, setLiveItems] = useState<Item[] | null>(null);
+  useEffect(() => { if (LIVE && ok) void be<{ meetings: Meeting[] }>('GET', 'member/minutes').then((r) => setLiveItems(r.ok ? toItems(r.data.meetings) : [])); }, [ok]);
+  const items = LIVE ? liveItems ?? [] : demo;
   const [body, setBody] = useState('');
   useEffect(() => { const read = () => setOk(!!findMember(getSessionEmail())); read(); window.addEventListener(SESSION_EVENT, read); return () => window.removeEventListener(SESSION_EVENT, read); }, []);
   useEffect(() => { if (ok === false) window.location.replace('/sign-in?next=/portal/minutes'); }, [ok]);
-  if (!ok) return <div className="portal-loading wrap" role="status">Loading…</div>;
+  if (!ok || (LIVE && !liveItems)) return <div className="portal-loading wrap" role="status">Loading…</div>;
   const rows = items.filter((m) => !body || m.body === body);
   return (
     <article className="cms-page"><div className="wrap narrow">
@@ -29,7 +34,7 @@ export function MeetingMinutes({ items }: { items: Item[] }) {
       ))}</ul>
       {!rows.length && <p>No published minutes yet.</p>}
       <p><Link href="/portal">Back to member home</Link></p>
-      <p className="samples-note">Sample minutes. Minutes marked for leaders only are not shown here.</p>
+      <p className="samples-note">{LIVE ? 'Minutes marked for leaders only are not shown here.' : 'Sample minutes. Minutes marked for leaders only are not shown here.'}</p>
     </div></article>
   );
 }

@@ -9,10 +9,12 @@ import { aria, DemoNote, FField } from './FormBits';
 import { LOADER_PLANS, SmartLoader } from '@/components/ui/SmartLoader';
 
 const CATEGORIES = ['Membership or dues', 'Elections', 'An Islamic Center', 'Conduct of staff, volunteers or officials', 'Privacy or my personal data', 'The website or app', 'Something else'];
-const ZONES = ['Not about a specific center', 'North zone', 'Northwest zone', 'Southwest zone', 'South zone', 'Southeast zone'];
+const NONE = 'Not about a specific center';
 
-export function ComplaintForm() {
-  const [f, setF] = useState({ category: '', zone: ZONES[0], when: '', what: '', outcome: '', anonymous: false, name: '', email: '', phone: '', truthful: false });
+/** `zones`: this organization's zones (Masjids and zones), `org`: its short name. */
+export function ComplaintForm({ zones = [], org = '' }: { zones?: string[]; org?: string }) {
+  const ZONES = [NONE, ...zones.map((z) => `${z} zone`)];
+  const [f, setF] = useState({ category: '', zone: NONE, when: '', what: '', outcome: '', anonymous: false, name: '', email: '', phone: '', truthful: false });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState<{ reference: string; days: number | null } | null>(null);
@@ -32,8 +34,12 @@ export function ComplaintForm() {
     setErrors(er);
     if (Object.keys(er).length) { document.getElementById(`cp-${Object.keys(er)[0]}`)?.focus(); return; }
     setBusy(true);
-    const r = await fileComplaint({ category: f.category, anonymous: f.anonymous });
-    setBusy(false); setDone({ reference: r.reference, days: r.respondWithinDays });
+    try {
+      const detail = [f.what.trim(), f.when && `When: ${f.when}`, f.zone !== ZONES[0] && `Where: ${f.zone}`, f.outcome.trim() && `Hoped-for outcome: ${f.outcome.trim()}`].filter(Boolean).join('\n\n');
+      const r = await fileComplaint({ category: f.category, anonymous: f.anonymous, title: `Complaint: ${f.category}`, detail, ...(f.anonymous ? {} : { name: f.name.trim(), email: f.email.trim(), phone: f.phone }) });
+      setDone({ reference: r.reference, days: r.respondWithinDays });
+    } catch (err) { setErrors({ what: err instanceof Error ? err.message : 'We could not send it. Please try again.' }); }
+    finally { setBusy(false); }
   };
 
   if (done) return (
@@ -88,7 +94,7 @@ export function ComplaintForm() {
       </fieldset>
       <label className="check" id="cp-truthful" tabIndex={-1}><input type="checkbox" checked={f.truthful} onChange={(e) => set({ truthful: e.target.checked })} /> <span>The information I gave is true to the best of my knowledge.</span></label>
       {errors.truthful && <p className="field-error">{errors.truthful}</p>}
-      <p className="hint">Complaints are handled confidentially by the Membership Office. Complaints about officials are reviewed under the ISGH Code of Ethics.</p>
+      <p className="hint">Complaints are handled confidentially by the Membership Office. Complaints about officials are reviewed under the {org ? `${org} ` : ''}Code of Ethics.</p>
       <button className="btn btn-primary" type="submit" disabled={busy} data-busy={busy || undefined}>{busy ? 'Sending…' : 'Submit complaint'}</button>
       <SmartLoader plan={LOADER_PLANS.complaint} active={busy} />
     </form>

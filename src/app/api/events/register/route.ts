@@ -1,10 +1,12 @@
 /**
  * POST /api/events/register – checks a registration against the event's rules and answers registered / waitlisted.
- * Demo: nothing is stored or charged (BE: POST /public/events/{id}/registrations – stores, takes payment, emails).
+ * With the API: forwarded to POST /public/events/{id}/registrations (the member's session cookie goes along; the server
+ * takes the seat under a lock, checks codes and sends the email). Demo: checked here, nothing is stored or charged.
  */
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { getEvents, getOrgConfig } from '@/lib/content/loaders';
+import { apiCall, apiConfig } from '@/lib/api/client';
 import { canSee, priceFor, registrationState, seatsFor, typeAvailable } from '@/lib/community/events';
 import { getGroups } from '@/lib/content/loaders';
 import { applyDiscount } from '@/lib/community/org-config';
@@ -20,6 +22,14 @@ const no = (message: string, status = 422) => NextResponse.json({ message }, { s
 export async function POST(req: Request) {
   let json: unknown; try { json = await req.json(); } catch { return no('Invalid request.', 400); }
   const p = Body.safeParse(json); if (!p.success) return no('Please check the form.');
+  if (!apiConfig.useMock) {
+    const { eventId, member: _m, ...rest } = p.data;
+    const r = await apiCall('POST', `/public/events/${encodeURIComponent(eventId)}/registrations`, rest).catch(() => null);
+    if (!r) return no('Registration is not available right now – please try again.', 503);
+    const out = (r.body ?? {}) as { error?: string; status?: string; ref?: string; totalCents?: number; manageToken?: string };
+    if (r.status >= 400) return no(out.error ?? 'Registration failed.', r.status);
+    return NextResponse.json({ status: out.status === 'waitlisted' ? 'waitlisted' : 'registered', ref: out.ref, totalCents: out.totalCents ?? 0, pendingPayment: out.status === 'pending-payment', manageToken: out.manageToken });
+  }
   const doc = await getEvents();
   const e = doc.enabled ? doc.events.find((x) => x.id === p.data.eventId && x.status !== 'draft') : undefined;
   if (!e) return no('Event not found.', 404);

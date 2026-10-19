@@ -47,7 +47,7 @@ test.describe('join flow', () => {
   test('existing member is sent to sign in instead of creating a duplicate', async ({ page }) => {
     await verifyEmail(page, 'member@example.com');
     await expect(page.locator('.callout')).toContainText('already have an ISGH membership');
-    await expect(page.getByRole('link', { name: 'Sign in' }).last()).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Sign in instead' })).toBeVisible();
   });
 
   test('about step: required fields, under 18, phone format, error summary links to fields', async ({ page }) => {
@@ -108,6 +108,8 @@ test.describe('join flow', () => {
     await cont(page);
     await page.locator('.plan-choice', { hasText: 'Single' }).click();
     await cont(page);
+    await expect(page.locator('h2#st-h')).toHaveText('Getting involved'); // admin step (form builder)
+    await cont(page);
     await expect(page.locator('h2#st-h')).toHaveText('Commitment and pledge');
     await cont(page);
     await expect(page.locator('.error-summary')).toContainText('accept the pledge');
@@ -117,6 +119,11 @@ test.describe('join flow', () => {
     await expect(page.locator('.error-summary')).toContainText('exactly as entered: Amina Khan');
     await page.fill('#f-pledge-signature', 'amina  khan');
     await page.locator('label.check', { hasText: 'Take part regularly' }).click();
+    await cont(page);
+    // J1: the identity policy consent is part of the pledge step
+    await expect(page.locator('.error-summary')).toContainText('Identity Collection and Verification Policy and tick the box');
+    await expect(page.locator('#f-pledge-identityConsent a')).toHaveAttribute('href', '/membership/identity-policy');
+    await page.locator('label.check', { hasText: 'I have read the Identity Collection' }).click();
     await cont(page);
     await expect(page.locator('h2#st-h')).toHaveText('Review and pay');
     await expect(page.locator('.eligibility')).toContainText('on track to vote');
@@ -136,7 +143,9 @@ test.describe('join flow', () => {
     await cont(page);
     await page.locator('.plan-choice', { hasText: 'Single' }).click();
     await cont(page);
+    await cont(page); // Getting involved (optional questions)
     await page.locator('label.check', { hasText: 'I accept this pledge' }).click();
+    await page.locator('label.check', { hasText: 'I have read the Identity Collection' }).click();
     await page.fill('#f-pledge-signature', 'Amina Khan');
     await cont(page);
     await expect(page.locator('.eligibility')).toContainText('Choose at least one commitment');
@@ -229,9 +238,15 @@ test.describe('join API (server re-validates)', () => {
       payment: { payer: 'self', payerRelationship: '', payerName: '' },
       pledgeVersion: 'v', emailConsentVersion: 'v', smsConsentVersion: 'v', amountCents: 1,
     };
-    const ok = await request.post('/api/membership/applications', { data: base });
+    // family plan: the admin's required follow-up question must be answered (same rule as the browser)
+    const missing = await request.post('/api/membership/applications', { data: base });
+    expect(missing.status()).toBe(422);
+    expect((await missing.json()).fields['custom.spouse-same-address']).toContain('Does your spouse live');
+    const ok = await request.post('/api/membership/applications', { data: { ...base, custom: { 'spouse-same-address': 'yes', 'how-heard': 'social-media', 'secret-field': 'x' } } });
     expect(ok.status()).toBe(201);
     expect((await ok.json()).amountCents).toBe(7200); // 2 × $40 − 10%
+    const badChoice = await request.post('/api/membership/applications', { data: { ...base, custom: { 'spouse-same-address': 'yes', 'how-heard': 'tv-ad' } } });
+    expect(badChoice.status()).toBe(422);
     const minor = await request.post('/api/membership/applications', { data: { ...base, about: { ...base.about, dob: '2015-01-01' } } });
     expect(minor.status()).toBe(422);
     const tooMany = await request.post('/api/membership/applications', { data: { ...base, plan: { ...base.plan, years: 9 } } });

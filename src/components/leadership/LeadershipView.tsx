@@ -10,7 +10,8 @@ import { OFFICERS, SECRETARIES, findMyRepresentatives, fmt, type PublicOfficial 
 type Zone = { id: string; name: string; zips: string[] };
 type Center = { name: string; zone: string };
 
-export function LeadershipView({ people, zones, centers, findByZip }: { people: PublicOfficial[]; zones: Zone[]; centers: Center[]; findByZip: boolean }) {
+type Past = { year: number; terms: { seat: string; name: string; term: string }[] };
+export function LeadershipView({ people, zones, centers, findByZip, past = [] }: { people: PublicOfficial[]; zones: Zone[]; centers: Center[]; findByZip: boolean; past?: Past[] }) {
   const officers = (Object.keys(OFFICERS) as (keyof typeof OFFICERS)[]).map((o) => people.find((p) => p.kind === 'officer' && p.office === o)).filter(Boolean) as PublicOfficial[];
   const directors = zones.map((z) => ({ z, p: people.find((p) => p.kind === 'zonal-director' && p.zone === z.id) }));
   return (
@@ -38,6 +39,18 @@ export function LeadershipView({ people, zones, centers, findByZip }: { people: 
           </div>
         ))}
       </section>
+      {past.length > 0 && (
+        <section className="ld-sec" aria-labelledby="ld-past">
+          <h2 id="ld-past">Past leadership</h2>
+          <p className="ld-sub">Those who served before – by election year.</p>
+          {past.map((g) => (
+            <details key={g.year} className="ld-past" data-year={g.year}>
+              <summary><b>Election {g.year}</b> <span>{g.terms.length} seat{g.terms.length === 1 ? '' : 's'} · terms {g.terms[0]?.term}</span></summary>
+              <ul className="ld-past-list">{g.terms.map((t, k) => <li key={k}><span className="ld-role">{t.seat}</span><b>{t.name}</b></li>)}</ul>
+            </details>
+          ))}
+        </section>
+      )}
       <p className="samples-note">Demo: sample names. Contact your representatives through the office email addresses shown.</p>
     </div></article>
   );

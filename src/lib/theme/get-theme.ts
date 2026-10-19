@@ -1,11 +1,12 @@
 /**
  * Website theme (colors, fonts, radii) – controlled by admin "Website theme editor" (module A8).
  *   Mock mode → src/lib/theme/default-themes.json (copied from design/tokens/themes.json)
- *   BE mode   → GET /public/theme (same JSON shape), contrast-checked before use
+ *   API mode  → GET /site/documents/themes (same JSON shape), contrast-checked before use
  */
 import 'server-only';
 import { cache } from 'react';
-import { apiConfig, apiGet } from '@/lib/api/client';
+import { apiConfig } from '@/lib/api/client';
+import { siteDoc } from '@/lib/api/load-public';
 import defaultThemes from './default-themes.json';
 import { buildThemeCss, checkContrast, type ThemesFile } from './theme-css';
 import { readDemoStore } from '@/lib/api/demo-store';
@@ -21,7 +22,7 @@ export const getThemes = cache(async (): Promise<ThemesFile> => {
     return fallback;
   }
   try {
-    const remote = await apiGet<ThemesFile>('/public/theme', [THEME_TAG]);
+    const remote = await siteDoc<ThemesFile>('themes');
     const problems = checkContrast(remote);
     if (problems.length) {
       console.error('[theme] Admin theme failed contrast check – using fallback', problems);

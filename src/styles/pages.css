@@ -126,3 +126,24 @@
 .cp-form { display: grid; gap: .3rem; } .cp-form .btn { justify-self: start; margin-top: .5rem; }
 .cp-sent { font-weight: 600; color: var(--success); }
 @media (max-width: 860px) { .cp-main { grid-template-columns: 1fr; } }
+/* E1 past leadership */
+.ld-past { margin-top: .6rem; border: 1px solid var(--line, rgba(127,127,127,.25)); border-radius: 14px; padding: .6rem .9rem; }
+.ld-past summary { cursor: pointer; display: flex; flex-wrap: wrap; gap: .6rem; align-items: baseline; } .ld-past summary span { color: var(--ink-3, #777); font-size: .9rem; }
+.ld-past-list { list-style: none; margin: .6rem 0 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: .4rem .9rem; }
+.ld-past-list li { display: grid; } .ld-past-list .ld-role { font-size: .78rem; }
+/* P1 plans: rules in words */
+.plan-rules { margin-top: 2.2rem; padding: 1.2rem 1.4rem; border-radius: 16px; border: 1px solid var(--line, rgba(127,127,127,.25)); }
+.plan-rules h2 { font-size: 1.25rem; margin: 0 0 .5rem; } .plan-rules ul { margin: 0; padding-left: 1.2rem; display: grid; gap: .4rem; }
+/* J1/J3 sign-up guide and identity policy */
+.guide-steps { list-style: none; margin: 1.5rem 0 0; padding: 0; display: grid; gap: 1rem; }
+.guide-steps li { display: grid; grid-template-columns: 44px minmax(0, 1fr); gap: .9rem; align-items: start; padding: 1rem 1.1rem; border-radius: 16px; border: 1px solid var(--line, rgba(127,127,127,.25)); }
+.guide-n { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; font-weight: 800; background: var(--accent, #0f6b4f); color: var(--on-accent, #fff); }
+.guide-steps h2 { font-size: 1.1rem; margin: .2rem 0 .3rem; } .guide-steps p { margin: 0; }
+.guide-help { margin-top: 1.4rem; color: var(--ink-2, #555); } .guide-cta { margin-top: 1.4rem; display: flex; gap: .6rem; flex-wrap: wrap; }
+.policy p { line-height: 1.6; } .policy-consent { margin-top: 1.6rem; padding: .9rem 1.1rem; border-radius: 12px; background: var(--field, rgba(127,127,127,.08)); }
+.jf-idnote { margin: -.4rem 0 .8rem; padding: .6rem .9rem; border-radius: 10px; background: var(--field, rgba(127,127,127,.08)); font-size: .92rem; }
+/* R1 records */
+.rec-group { margin-top: 2rem; } .rec-group h2 { font-size: 1.3rem; margin-bottom: .6rem; }
+.rec-list { list-style: none; margin: 0; padding: 0; display: grid; gap: .6rem; }
+.rec-list li { padding: .8rem 1rem; border-radius: 14px; border: 1px solid var(--line, rgba(127,127,127,.25)); display: grid; gap: .2rem; }
+.rec-list a { text-decoration: none; } .rec-list a:hover b { text-decoration: underline; } .rec-meta { font-size: .85rem; color: var(--ink-3, #777); } .rec-list p { margin: .2rem 0 0; font-size: .92rem; }

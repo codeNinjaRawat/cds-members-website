@@ -5,14 +5,15 @@
  * "cover the remaining" chip, monthly option for ongoing funds, anonymous by default for privacy.
  */
 import { useEffect, useRef, useState, type FormEvent } from 'react';
-import { formatUSD } from '@/lib/content/membership';
+import { formatUSD, type MonthlyOffer } from '@/lib/content/membership';
 import type { Need } from '@/lib/content/giving';
-import { give } from '@/lib/demo/demo-service';
+import { DEMO, give } from '@/lib/demo/demo-service';
+import { findMember, getSessionEmail } from '@/lib/demo/demo-member';
 import { LOADER_PLANS, SmartLoader } from '@/components/ui/SmartLoader';
 
 type Receipt = Awaited<ReturnType<typeof give>>;
 
-export function GiveDialog({ need, onClose }: { need: Need | null; onClose: () => void }) {
+export function GiveDialog({ need, onClose, offer = null }: { need: Need | null; onClose: () => void; offer?: MonthlyOffer | null }) {
   const ref = useRef<HTMLDialogElement>(null);
   const remaining = need?.goalCents !== undefined ? Math.max(0, need.goalCents - (need.raisedCents ?? 0)) : null;
   const chips = [2500, 5000, 10000, 25000];
@@ -21,13 +22,14 @@ export function GiveDialog({ need, onClose }: { need: Need | null; onClose: () =
   const [fund, setFund] = useState<'zakat' | 'sadaqah'>('sadaqah');
   const [monthly, setMonthly] = useState(false);
   const [anonymous, setAnonymous] = useState(true);
+  const [who, setWho] = useState({ name: '', email: '' });   // live: for the receipt (prefilled when signed in)
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [receipt, setReceipt] = useState<Receipt | null>(null);
 
   useEffect(() => {
     const d = ref.current; if (!d) return;
-    if (need && !d.open) { setReceipt(null); setError(''); setCustom(''); setAmount(5000); setFund(need.zakatEligible ? 'zakat' : 'sadaqah'); setMonthly(false); d.showModal(); }
+    if (need && !d.open) { const m = findMember(getSessionEmail()); setWho({ name: m ? `${m.firstName} ${m.lastName}` : '', email: m?.email ?? '' }); setReceipt(null); setError(''); setCustom(''); setAmount(5000); setFund(need.zakatEligible ? 'zakat' : 'sadaqah'); setMonthly(false); d.showModal(); }
     if (!need && d.open) d.close();
   }, [need]);
 
@@ -37,9 +39,11 @@ export function GiveDialog({ need, onClose }: { need: Need | null; onClose: () =
     e.preventDefault();
     if (!need) return;
     if (!Number.isFinite(cents) || cents < 500) return setError('Enter at least $5.00.');
-    if (cents > 5000000) return setError('For gifts over $50,000, please contact the ISGH office.');
+    if (cents > 5000000) return setError('For gifts over $50,000, please contact the office.');
+    if (!DEMO && (who.name.trim().length < 2 || !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(who.email.trim()))) return setError('Enter your name and email for the receipt.');
     setError(''); setBusy(true);
-    try { setReceipt(await give({ needId: need.id, amountCents: cents, fund, monthly, anonymous })); }
+    try { const r = await give({ needId: need.id, amountCents: cents, fund, monthly, anonymous, name: who.name.trim(), email: who.email.trim() }); if (DEMO) setReceipt(r); }   // live: the card page opens
+    catch (err) { setError(err instanceof Error ? err.message : 'We could not start the payment. Please try again.'); }
     finally { setBusy(false); }
   };
 
@@ -53,7 +57,7 @@ export function GiveDialog({ need, onClose }: { need: Need | null; onClose: () =
             <form onSubmit={submit} noValidate>
               <p className="give-kicker">Give to</p>
               <h2 id="give-h">{need.title}</h2>
-              <p className="give-demo">Demo – no payment is taken.</p>
+              {DEMO && <p className="give-demo">Demo – no payment is taken.</p>}
               {need.zakatEligible && (
                 <fieldset className="give-fund">
                   <legend className="sr-only">Type of gift</legend>
@@ -79,12 +83,18 @@ export function GiveDialog({ need, onClose }: { need: Need | null; onClose: () =
                 </label>
                 {error && <p className="field-error" id="give-err">{error}</p>}
               </fieldset>
+              {!DEMO && (
+                <div className="give-who">
+                  <label><span>Your name</span><input className="input" autoComplete="name" value={who.name} onChange={(e) => setWho((w) => ({ ...w, name: e.target.value }))} /></label>
+                  <label><span>Email for the receipt</span><input className="input" type="email" autoComplete="email" value={who.email} onChange={(e) => setWho((w) => ({ ...w, email: e.target.value }))} /></label>
+                </div>
+              )}
               <label className="check"><input type="checkbox" checked={monthly} onChange={(e) => setMonthly(e.target.checked)} /> <span>Make it monthly{need.status === 'ongoing' ? ' – helps the office plan ahead' : ''}</span></label>
               <label className="check"><input type="checkbox" checked={anonymous} onChange={(e) => setAnonymous(e.target.checked)} /> <span>Give anonymously (your name is never shown publicly)</span></label>
               <button className="btn btn-primary give-submit" type="submit" disabled={busy} data-busy={busy || undefined}>
                 Give {Number.isFinite(cents) && cents >= 500 ? formatUSD(cents) : ''}{monthly ? ' monthly' : ''}
               </button>
-              <p className="give-fine">ISGH is a 501(c)(3) nonprofit. Gifts are tax-deductible as allowed by law; you get an emailed receipt.</p>
+              <p className="give-fine">We are a 501(c)(3) nonprofit. Gifts are tax-deductible as allowed by law; you get an emailed receipt.</p>
             </form>
           ) : (
             <div className="give-thanks" role="status">
@@ -92,6 +102,14 @@ export function GiveDialog({ need, onClose }: { need: Need | null; onClose: () =
               <h2 id="give-h">JazakAllahu khayran</h2>
               <p>Your {receipt.fund === 'zakat' ? 'Zakat' : 'Sadaqah'} gift of <b>{formatUSD(receipt.amountCents)}</b>{receipt.monthly ? ' each month' : ''} is recorded for &ldquo;{need.title}&rdquo;.</p>
               <p className="give-ref">Receipt number {receipt.receipt}</p>
+              {/* D11 – from the review call: a monthly donor is offered membership with the gift they already give */}
+              {offer && receipt.monthly && (
+                <div className="give-offer" data-offer>
+                  <h3>Become a member with your monthly gift</h3>
+                  <p>{offer.label}: give at least {formatUSD(offer.monthlyCents)} a month, and once the year’s contributions reach {formatUSD(offer.totalCents)} by {new Date(`2001-${offer.cutoff}T12:00:00`).toLocaleDateString('en-US', { month: 'long', day: 'numeric' })}, {offer.spouse ? 'you and your spouse are' : 'you are'} {offer.planName} members for the year – no separate dues.{receipt.amountCents >= offer.monthlyCents ? ' Your gift already qualifies.' : ` Raise it to ${formatUSD(offer.monthlyCents)} a month to qualify.`}</p>
+                  <a className="btn btn-primary" href="/join?plan=monthly">Start my membership</a>
+                </div>
+              )}
               <blockquote><p>&ldquo;The example of those who spend their wealth in the way of Allāh is like a seed [of grain] which grows seven spikes; in each spike is a hundred grains.&rdquo;</p><cite>Quran 2:261</cite></blockquote>
               <button type="button" className="btn btn-outline" onClick={onClose}>Close</button>
             </div>

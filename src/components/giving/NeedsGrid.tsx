@@ -9,10 +9,11 @@ import { formatUSD } from '@/lib/content/membership';
 import { NEED_LABEL, percent, STATUS_LABEL, type Need } from '@/lib/content/giving';
 import { Photo } from '@/components/ui/Photo';
 import { GiveDialog } from './GiveDialog';
+import type { MonthlyOffer } from '@/lib/content/membership';
 
 const ORDER: Record<Need['status'], number> = { urgent: 0, open: 1, ongoing: 2, met: 3 };
 
-export function NeedsGrid({ needs, showProgress = true, filters = false, limit }: { needs: Need[]; showProgress?: boolean; filters?: boolean; limit?: number }) {
+export function NeedsGrid({ needs, showProgress = true, filters = false, limit, offer = null }: { needs: Need[]; showProgress?: boolean; filters?: boolean; limit?: number; offer?: MonthlyOffer | null }) {
   const [cat, setCat] = useState<Need['category'] | 'all'>('all');
   const [active, setActive] = useState<Need | null>(null);
   const cats = useMemo(() => Array.from(new Set(needs.map((n) => n.category))), [needs]);
@@ -65,7 +66,7 @@ export function NeedsGrid({ needs, showProgress = true, filters = false, limit }
           );
         })}
       </ul>
-      <GiveDialog need={active} onClose={() => setActive(null)} />
+      <GiveDialog need={active} onClose={() => setActive(null)} offer={offer} />
     </>
   );
 }
