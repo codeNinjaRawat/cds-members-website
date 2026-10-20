@@ -57,7 +57,7 @@ export async function apiGet<T = unknown>(path: string, tags: string[] = [], opt
     ...(opts.session ? { cache: 'no-store' as const } : { next: { revalidate: apiConfig.revalidate, tags } }),
   });
   const body = await res.json().catch(() => null);
-  if (!res.ok) throw new ApiError(`GET ${path} failed`, res.status, body);
+  if (!res.ok) throw new ApiError(`GET ${path} failed (${res.status})${body && typeof body === 'object' && 'error' in body ? `: ${String((body as { error: unknown }).error)}` : ''}`, res.status, body);   // the server's reason shows on the error page
   return body as T;
 }
 
