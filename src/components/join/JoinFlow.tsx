@@ -41,6 +41,7 @@ type Draft = {
   filled: Record<string, string>;        // field → "From your ID" / "From last year" (shown until edited)
   idCaptured: boolean;                   // photo ID taken with "Scan your ID"
   mode: 'join' | 'renew';
+  notMember?: boolean;                   // said "that is not me" to a same-name-and-birth-date match
 };
 
 const initialDraft = (planId: string): Draft => ({
@@ -115,7 +116,9 @@ export function JoinFlow({ settings, form, initialPlan, mockMode = svc.DEMO, con
   const [notice, setNotice] = useState('');
   const [otp, setOtp] = useState({ sent: false, code: '', devCode: '', seconds: 0, existing: false });
   const [result, setResult] = useState<{ applicationId: string; amountCents: number; method?: string } | null>(null);
-  const [already, setAlready] = useState<svc.AlreadyApplied | null>(null);          // this email already has an application
+  const [already, setAlready] = useState<svc.AlreadyApplied | null>(null);
+  const [maybeMember, setMaybeMember] = useState(false);   // same name + birth date as a member – asked, never blocked
+  const [phoneNote, setPhoneNote] = useState('');          // this email already has an application
   const [saveState, setSaveState] = useState<'' | 'saving' | 'saved' | 'offline' | 'expired'>('');   // live autosave
   // Admin › Settings › Configuration › Payments / Discount codes (WildApricot: Payment settings, Discounts)
   const methods = config ? payMethods(config) : (['card'] as const);
@@ -297,13 +300,26 @@ export function JoinFlow({ settings, form, initialPlan, mockMode = svc.DEMO, con
     const r = schemas.about.safeParse(about);
     const errs = { ...(r.success ? {} : prefix('about', fieldErrors(r.error))), ...customErrors('about') };
     if (Object.keys(errs).length) return showErrors(errs);
+    if (!mockMode && !d.notMember && d.mode !== 'renew') {
+      setTask('lookup');
+      const c = await svc.checkPerson({ firstName: about.firstName, lastName: about.lastName, dob: about.dob, phone: about.phone }).finally(() => setTask(null));
+      setPhoneNote(c.phoneOnFile ? 'This mobile number is already on another member’s record. That is fine if your family shares it – otherwise use your own, so messages reach you.' : '');
+      if (c.possibleMember) { setMaybeMember(true); requestAnimationFrame(() => document.getElementById('jf-maybe')?.focus()); return; }
+    }
+    goTo(nextOf('about'));
+  };
+  const notMe = () => {
+    setMaybeMember(false); setD((x) => ({ ...x, notMember: true }));
+    void svc.checkPerson({ firstName: d.about.firstName, lastName: d.about.lastName, dob: d.about.dob, phone: d.about.phone }, true);
     goTo(nextOf('about'));
   };
 
   const nextFromPlan = (e: FormEvent) => {
     e.preventDefault();
     const r = schemas.plan.safeParse(d.plan);
-    const errs = { ...(r.success ? {} : prefix('plan', fieldErrors(r.error))), ...customErrors('plan') };
+    const errs: Record<string, string> = { ...(r.success ? {} : prefix('plan', fieldErrors(r.error))), ...customErrors('plan') };
+    if (plan?.category === 'household' && d.plan.spouse.email.trim() && d.plan.spouse.email.trim().toLowerCase() === d.account.email.trim().toLowerCase())
+      errs['plan.spouse.email'] = 'Your spouse needs their own email address – not the same as yours.';
     if (Object.keys(errs).length) return showErrors(errs);
     goTo(nextOf('plan'));
   };
@@ -601,9 +617,9 @@ export function JoinFlow({ settings, form, initialPlan, mockMode = svc.DEMO, con
               <input id="f-about-dob" className="input" type="date" autoComplete="bday" value={d.about.dob} max={new Date().toISOString().slice(0, 10)}
                 onChange={(e) => { clearFilled('about.dob'); set('about', { dob: e.target.value }); }} onBlur={(e) => blurCheck('about', 'dob', e.target.value)} aria-invalid={!!err('about.dob') || undefined} aria-describedby={describedBy('f-about-dob', true, err('about.dob'))} />
             </Field>
-            <Field id="f-about-phone" label={coreLabel(liveForm, 'phone')} hint={coreHelp(liveForm, 'phone', 'For important account notices.')} tag={filledTag('about.phone')} error={err('about.phone')}>
+            <Field id="f-about-phone" label={coreLabel(liveForm, 'phone')} hint={phoneNote || (digits(d.about.phone).length === 10 ? '✓ Looks right' : digits(d.about.phone).length ? `Enter all 10 digits (${digits(d.about.phone).length} so far)` : coreHelp(liveForm, 'phone', 'For important account notices.'))} tag={filledTag('about.phone')} error={err('about.phone')}>
               <input id="f-about-phone" className="input" type="tel" autoComplete="tel-national" inputMode="tel" placeholder="(713) 555-0123" value={d.about.phone}
-                onChange={(e) => set('about', { phone: formatPhone(e.target.value) })} onBlur={(e) => blurCheck('about', 'phone', e.target.value)} aria-invalid={!!err('about.phone') || undefined} aria-describedby={describedBy('f-about-phone', true, err('about.phone'))} />
+                onChange={(e) => { setPhoneNote(''); set('about', { phone: formatPhone(e.target.value) }); }} onBlur={(e) => blurCheck('about', 'phone', e.target.value)} aria-invalid={!!err('about.phone') || undefined} aria-describedby={describedBy('f-about-phone', true, err('about.phone'))} />
             </Field>
           </div>
 
@@ -660,6 +676,16 @@ export function JoinFlow({ settings, form, initialPlan, mockMode = svc.DEMO, con
             </div>
           </fieldset>
           <CustomSections sections={sectionsAt(liveForm, 'about')} answers={d.custom} ctx={ctx} errors={errors} onChange={setCustom} filled={d.filled} />
+          {maybeMember && (
+            <div className="callout" data-tone="info" role="alert" id="jf-maybe" tabIndex={-1}>
+              <b>We may already have you on file</b>
+              <p>A member named {d.about.firstName} {d.about.lastName} with the same date of birth is already registered. If that is you, sign in to renew – your history and your vote stay together.</p>
+              <div className="row-actions">
+                <Link className="btn btn-primary" href="/sign-in">Sign in instead</Link>
+                <button type="button" className="btn btn-outline" onClick={notMe}>That is not me – continue</button>
+              </div>
+            </div>
+          )}
           <StepNav onBack={() => goTo(prevOf('about'))} busy={busy} onSave={liveForm.helpers.saveForLater ? saveForLater : undefined} />
         </form>
       )}

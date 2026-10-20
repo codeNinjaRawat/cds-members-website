@@ -237,3 +237,11 @@ export async function emailSavedApplication(): Promise<{ sent: boolean; link: st
   const r = await be<{ sent: boolean; to?: string; message?: string }>('POST', 'public/join/draft/link', { resumeToken: token });
   return r.ok ? { sent: r.data.sent, link, to: r.data.to, message: r.data.message } : { sent: false, link, message: r.message };
 }
+
+/** J1 – after "About you": is this person (same name + birth date) or this mobile number already on file? Only yes/no. */
+export async function checkPerson(a: { firstName: string; lastName: string; dob: string; phone: string }, notMe = false): Promise<{ possibleMember: boolean; phoneOnFile: boolean }> {
+  if (!LIVE) return { possibleMember: false, phoneOnFile: false };
+  const token = liveResumeToken(); if (!token) return { possibleMember: false, phoneOnFile: false };
+  const r = await be<{ possibleMember: boolean; phoneOnFile: boolean }>('POST', 'public/join/check', { resumeToken: token, ...a, notMe });
+  return r.ok ? r.data : { possibleMember: false, phoneOnFile: false };   // never block on a failed check – the office still sees duplicates
+}
