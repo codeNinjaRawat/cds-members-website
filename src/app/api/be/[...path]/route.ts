@@ -14,7 +14,8 @@ const sameSite = (req: Request) => {
   return o === `https://${host}` || o === `http://${host}` || o === new URL(req.url).origin;
 };
 /** The API's cookie, re-issued for this website (no Domain – the browser keeps it for this address only). */
-const ownCookie = (c: string) => c.split(';').map((x) => x.trim()).filter((x) => !/^domain=/i.test(x)).join('; ');
+// development (http://…localhost) against the server: drop Secure too, or the browser may discard the sign-in cookie
+const ownCookie = (c: string) => c.split(';').map((x) => x.trim()).filter((x) => !/^domain=/i.test(x) && !(process.env.NODE_ENV !== 'production' && /^secure$/i.test(x))).join('; ');
 
 async function pass(req: Request, { params }: Ctx) {
   if (apiConfig.useMock) return Response.json({ message: 'Demo mode – the API is not connected.' }, { status: 404 });

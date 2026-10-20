@@ -21,7 +21,7 @@ export async function POST(req: Request) {
     if (r.status >= 400) return NextResponse.json({ error: 'invalid_code' }, { status: 400 });
     const b = r.body as { dashboards?: { kind: string }[] };
     const res = NextResponse.json({ verified: true, existingMember: !!b.dashboards?.some((d) => d.kind === 'member') });
-    for (const c of r.setCookie) res.headers.append('set-cookie', c.replace(/;\s*domain=[^;]*/i, ''));   // the session cookie for this website
+    for (const c of r.setCookie) res.headers.append('set-cookie', c.replace(/;\s*domain=[^;]*/i, '').replace(process.env.NODE_ENV !== 'production' ? /;\s*secure(?=;|$)/i : /$^/, ''));   // the session cookie for this website
     return res;
   } catch {
     return NextResponse.json({ error: 'invalid_code' }, { status: 400 });
