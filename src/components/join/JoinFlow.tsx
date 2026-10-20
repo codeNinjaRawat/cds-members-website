@@ -323,7 +323,7 @@ export function JoinFlow({ settings, form, initialPlan, mockMode = svc.DEMO, con
 
   const nextFromPlan = (e: FormEvent) => {
     e.preventDefault();
-    const r = schemas.plan.safeParse({ ...d.plan, members, monthlyCents: plan?.term === 'recurring' ? monthly : undefined });
+    const r = schemas.plan.safeParse({ ...d.plan, members, monthlyCents: plan?.term === 'recurring' ? (d.plan.monthlyCents ?? plan.priceCents) : undefined });
     const errs: Record<string, string> = { ...(r.success ? {} : prefix('plan', fieldErrors(r.error))), ...customErrors('plan') };
     if (plan?.category === 'household' && d.plan.spouse.email.trim() && d.plan.spouse.email.trim().toLowerCase() === d.account.email.trim().toLowerCase())
       errs['plan.spouse.email'] = 'Your spouse needs their own email address – not the same as yours.';
