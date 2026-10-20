@@ -33,7 +33,7 @@ const NEW_MEMBER: FamilyMember = { firstName: '', lastName: '', email: '', phone
 type Draft = {
   step: StepId;
   account: { email: string; verified: boolean; provider?: 'email' | 'google' };
-  about: { firstName: string; middleName: string; lastName: string; preferredName: string; dob: string; phone: string;
+  about: { firstName: string; middleName: string; lastName: string; preferredName: string; idNumber: string; dob: string; phone: string;
     street: string; unit: string; city: string; state: string; zip: string; centerId: string; zoneId: string; borderRequestCenterId: string };
   lookup: LookupResult | null;
   plan: { memberClass: 'natural' | 'associate'; planId: string; years: number; spouse: { firstName: string; lastName: string; email: string }; members: FamilyMember[]; monthlyCents?: number; fund?: string };
@@ -49,7 +49,7 @@ type Draft = {
 const initialDraft = (planId: string): Draft => ({
   step: 'account',
   account: { email: '', verified: false },
-  about: { firstName: '', middleName: '', lastName: '', preferredName: '', dob: '', phone: '', street: '', unit: '', city: 'Houston', state: 'TX', zip: '', centerId: '', zoneId: '', borderRequestCenterId: '' },
+  about: { firstName: '', middleName: '', lastName: '', preferredName: '', idNumber: '', dob: '', phone: '', street: '', unit: '', city: 'Houston', state: 'TX', zip: '', centerId: '', zoneId: '', borderRequestCenterId: '' },
   lookup: null,
   plan: { memberClass: 'natural', planId, years: 1, spouse: { firstName: '', lastName: '', email: '' }, members: [] },
   pledge: { commitments: [], pledgeAccepted: false, signature: '', emailConsent: false, smsConsent: false, identityConsent: false },
@@ -70,7 +70,7 @@ function mergeSaved(base: Draft, data: Record<string, unknown>, email: string, s
     payment: { ...base.payment, ...(o('payment') as Partial<Draft['payment']>) },
     custom: { ...base.custom, ...(o('custom') as Answers) }, filled: { ...base.filled, ...(o('filled') as Record<string, string>) },
     account: { ...base.account, email, verified: true },
-    step: !step || step === 'account' || step === 'done' ? 'about' : step,
+    step: !step || step === 'account' || step === 'done' ? 'plan' : step,
   };
 }
 
@@ -234,10 +234,13 @@ export function JoinFlow({ settings, form, initialPlan, mockMode = svc.DEMO, con
   }, [offeredClasses.length, plans.length, d.plan.memberClass, d.plan.planId]); // eslint-disable-line react-hooks/exhaustive-deps
   const preview = votingPreview(settings, { dob: d.about.dob, memberClass: d.plan.memberClass, planId: d.plan.planId, commitments: d.pledge.commitments, state: d.about.state, payer: d.payment.payer });
   const ctx: FormCtx = { planId: d.plan.planId, planCategory: plan?.category ?? '', memberClass: d.plan.memberClass, age: d.about.dob ? ageOnRecord(d.about.dob, new Date().toISOString().slice(0, 10)) : null };
+  // the step that follows "About you" when the chosen plan covers a spouse or lets the person pay for other adults
+  const familyStep = plan?.category === 'household' || !!plan?.familyMembers || sectionsAt(liveForm, 'plan').some((sec) => sec.fields.some((f) => fieldShown(f, d.custom, ctx)));
   const ownSteps = (p: Placement): StepDef[] => sectionsAt(liveForm, p).map((sec) => ({ id: `s:${sec.id}`, label: sec.title, section: sec }));
   const allSteps: StepDef[] = [
-    { id: 'account', label: 'Email' }, { id: 'about', label: 'About you' }, ...ownSteps('step-after-about'),
-    { id: 'plan', label: 'Plan' }, ...ownSteps('step-after-plan'), { id: 'pledge', label: 'Pledge' }, ...ownSteps('step-after-pledge'),
+    { id: 'account', label: 'Email' }, { id: 'plan', label: 'Plan' }, { id: 'about', label: 'About you' }, ...ownSteps('step-after-about'),
+    ...(familyStep ? [{ id: 'family', label: plan?.category === 'household' ? 'Spouse' : 'Family' }] : []),
+    ...ownSteps('step-after-plan'), { id: 'pledge', label: coreLabel(liveForm, 'pledge') }, ...ownSteps('step-after-pledge'),
     { id: 'review', label: d.mode === 'renew' ? 'Review and renew' : 'Review and pay' },
   ];
   // an admin step is skipped when none of its questions apply (e.g. family-only questions on a Single plan)
@@ -280,7 +283,7 @@ export function JoinFlow({ settings, form, initialPlan, mockMode = svc.DEMO, con
         return;
       }
       set('account', { verified: true });
-      goTo('about');
+      goTo('plan');
     } catch { showErrors({ 'account.code': 'We could not check the code. Try again.' }); }
     finally { setTask(null); }
   };
@@ -305,7 +308,8 @@ export function JoinFlow({ settings, form, initialPlan, mockMode = svc.DEMO, con
     let about = d.about;
     if (!about.centerId) { const l = await findCenter(); if (!l) return; about = { ...about, centerId: l.center?.id ?? 'outside-area', zoneId: l.zone?.id ?? 'outside-area' }; }
     const r = schemas.about.safeParse(about);
-    const errs = { ...(r.success ? {} : prefix('about', fieldErrors(r.error))), ...customErrors('about') };
+    const errs: Record<string, string> = { ...(r.success ? {} : prefix('about', fieldErrors(r.error))), ...customErrors('about') };
+    if (coreShown(liveForm, 'idNumber') && !about.idNumber.trim()) errs['about.idNumber'] = `Enter your ${coreLabel(liveForm, 'idNumber').toLowerCase()}.`;
     if (Object.keys(errs).length) return showErrors(errs);
     if (!mockMode && !d.notMember && d.mode !== 'renew') {
       setTask('lookup');
@@ -324,11 +328,18 @@ export function JoinFlow({ settings, form, initialPlan, mockMode = svc.DEMO, con
   const nextFromPlan = (e: FormEvent) => {
     e.preventDefault();
     const r = schemas.plan.safeParse({ ...d.plan, members, monthlyCents: plan?.term === 'recurring' ? (d.plan.monthlyCents ?? plan.priceCents) : undefined });
+    const errs: Record<string, string> = Object.fromEntries(Object.entries(r.success ? {} : prefix('plan', fieldErrors(r.error))).filter(([k]) => !k.startsWith('plan.spouse') && !k.startsWith('plan.members')));
+    if (Object.keys(errs).length) return showErrors(errs);
+    goTo(nextOf('plan'));
+  };
+  const nextFromFamily = (e: FormEvent) => {
+    e.preventDefault();
+    const r = schemas.plan.safeParse({ ...d.plan, members, monthlyCents: plan?.term === 'recurring' ? (d.plan.monthlyCents ?? plan.priceCents) : undefined });
     const errs: Record<string, string> = { ...(r.success ? {} : prefix('plan', fieldErrors(r.error))), ...customErrors('plan') };
     if (plan?.category === 'household' && d.plan.spouse.email.trim() && d.plan.spouse.email.trim().toLowerCase() === d.account.email.trim().toLowerCase())
       errs['plan.spouse.email'] = 'Your spouse needs their own email address – not the same as yours.';
     if (Object.keys(errs).length) return showErrors(errs);
-    goTo(nextOf('plan'));
+    goTo(nextOf('family'));
   };
 
   const nextFromPledge = (e: FormEvent) => {
@@ -336,8 +347,11 @@ export function JoinFlow({ settings, form, initialPlan, mockMode = svc.DEMO, con
     const r = schemas.pledge.safeParse(d.pledge);
     const errs = r.success ? {} : prefix('pledge', fieldErrors(r.error));
     const expected = `${d.about.firstName} ${d.about.lastName}`.trim();
-    if (d.pledge.signature.trim().toLowerCase().replace(/\s+/g, ' ') !== expected.toLowerCase().replace(/\s+/g, ' '))
-      errs['pledge.signature'] = `Type your name exactly as entered: ${expected}.`;
+    if (coreShown(liveForm, 'signature')) {
+      if (!d.pledge.signature.trim()) errs['pledge.signature'] = 'Type your full name to sign.';
+      else if (d.pledge.signature.trim().toLowerCase().replace(/\s+/g, ' ') !== expected.toLowerCase().replace(/\s+/g, ' ')) errs['pledge.signature'] = `Type your name exactly as entered: ${expected}.`;
+    } else if (d.pledge.signature !== expected || !d.pledge.emailConsent) set('pledge', { signature: expected, emailConsent: true });
+    if (!coreShown(liveForm, 'commitments') && !d.pledge.commitments.length && settings.commitments[0]) set('pledge', { commitments: [settings.commitments[0].id] });
     Object.assign(errs, customErrors('pledge'));
     if (settings.identity.policy.enabled && settings.identity.consentRequired && !d.pledge.identityConsent) errs['pledge.identityConsent'] = `Please read the ${settings.identity.policy.title} and tick the box.`;
     if (Object.keys(errs).length) return showErrors(errs);
@@ -426,7 +440,7 @@ export function JoinFlow({ settings, form, initialPlan, mockMode = svc.DEMO, con
     const planId = m?.plan === 'Family' ? plans.find((p) => p.category === 'household')?.id : plans.find((p) => p.id === 'single')?.id;
     setD((x) => ({ ...x, mode: 'renew', account: { ...x.account, verified: true }, about, custom, filled, plan: { ...x.plan, planId: planId ?? x.plan.planId } }));
     setOtp((o) => ({ ...o, existing: false }));
-    goTo('about');
+    goTo('plan');
     setNotice(`Renewing ${m?.firstName ?? 'your'} membership – we filled in last year's answers. Check each step and change anything that is new.`);
     void findCenter({ street: about.street, city: about.city, state: about.state, zip: about.zip });
   };
@@ -456,7 +470,7 @@ export function JoinFlow({ settings, form, initialPlan, mockMode = svc.DEMO, con
     setD((x) => ({ ...x, account: { email: p.email, verified: true, provider: 'google' } as Draft['account'],
       about: { ...x.about, firstName: x.about.firstName || p.firstName, lastName: x.about.lastName || p.lastName } }));
     setNotice(`Signed in with Google as ${p.email}.`);
-    setErrors({}); setD((x) => ({ ...x, step: 'about' }));
+    setErrors({}); setD((x) => ({ ...x, step: 'plan' }));
     requestAnimationFrame(() => { headingRef.current?.focus(); window.scrollTo({ top: 0, behavior: 'smooth' }); });
   };
 
@@ -624,6 +638,10 @@ export function JoinFlow({ settings, form, initialPlan, mockMode = svc.DEMO, con
               <input id="f-about-dob" className="input" type="date" autoComplete="bday" value={d.about.dob} max={new Date().toISOString().slice(0, 10)}
                 onChange={(e) => { clearFilled('about.dob'); set('about', { dob: e.target.value }); }} onBlur={(e) => blurCheck('about', 'dob', e.target.value)} aria-invalid={!!err('about.dob') || undefined} aria-describedby={describedBy('f-about-dob', true, err('about.dob'))} />
             </Field>
+            {coreShown(liveForm, 'idNumber') && <Field id="f-about-idNumber" label={coreLabel(liveForm, 'idNumber')} hint={coreHelp(liveForm, 'idNumber', 'As printed on the card.')} tag={filledTag('about.idNumber')} error={err('about.idNumber')}>
+              <input id="f-about-idNumber" className="input" autoComplete="off" value={d.about.idNumber} onChange={(e) => set('about', { idNumber: e.target.value })}
+                aria-invalid={!!err('about.idNumber') || undefined} aria-describedby={describedBy('f-about-idNumber', true, err('about.idNumber'))} />
+            </Field>}
             <Field id="f-about-phone" label={coreLabel(liveForm, 'phone')} hint={phoneNote || (digits(d.about.phone).length === 10 ? '✓ Looks right' : digits(d.about.phone).length ? `Enter all 10 digits (${digits(d.about.phone).length} so far)` : coreHelp(liveForm, 'phone', 'For important account notices.'))} tag={filledTag('about.phone')} error={err('about.phone')}>
               <input id="f-about-phone" className="input" type="tel" autoComplete="tel-national" inputMode="tel" placeholder="(713) 555-0123" value={d.about.phone}
                 onChange={(e) => { setPhoneNote(''); set('about', { phone: formatPhone(e.target.value) }); }} onBlur={(e) => blurCheck('about', 'phone', e.target.value)} aria-invalid={!!err('about.phone') || undefined} aria-describedby={describedBy('f-about-phone', true, err('about.phone'))} />
@@ -737,11 +755,39 @@ export function JoinFlow({ settings, form, initialPlan, mockMode = svc.DEMO, con
           {plan && plan.term === 'calendar_year' && plan.maxYearsAhead > 1 && (
             <Field id="f-plan-years" label="How many years?" hint={plan.multiYearDiscountPct ? `Save ${plan.multiYearDiscountPct}% when you pay 2 or more years.` : undefined} error={err('plan.years')}>
               <select id="f-plan-years" className="input narrow-input" value={d.plan.years} onChange={(e) => set('plan', { years: Number(e.target.value) })}>
-                {Array.from({ length: plan.maxYearsAhead }, (_, i) => i + 1).map((y) => <option key={y} value={y}>{y} year{y > 1 ? 's' : ''} ({settings.year}{y > 1 ? `–${settings.year + y - 1}` : ''}, through {fmtDay(termFor(plan, { start: `${settings.year}-01-01`, years: y, saleYear: settings.year }).through ?? '')})</option>)}
+                {(plan.yearChoices?.length ? plan.yearChoices.filter((y) => y <= plan.maxYearsAhead) : Array.from({ length: plan.maxYearsAhead }, (_, i) => i + 1)).map((y) => <option key={y} value={y}>{y} year{y > 1 ? 's' : ''} ({settings.year}{y > 1 ? `–${settings.year + y - 1}` : ''}, through {fmtDay(termFor(plan, { start: `${settings.year}-01-01`, years: y, saleYear: settings.year }).through ?? '')})</option>)}
               </select>
             </Field>
           )}
 
+          {plan?.term === 'recurring' && (
+            <fieldset className="jf-fieldset">
+              <legend>Your monthly gift</legend>
+              <Field id="f-plan-monthlyCents" label="Amount each month" hint={`At least ${formatUSD(plan.priceCents)} a month. The first month is paid today.`} error={err('plan.monthlyCents')}>
+                <div className="input-group narrow-input"><span aria-hidden="true">$</span>
+                  <input id="f-plan-monthlyCents" className="input" type="number" inputMode="decimal" min={plan.priceCents / 100} step="1" value={(d.plan.monthlyCents || plan.priceCents) / 100}
+                    onChange={(e) => set('plan', { monthlyCents: Math.round(Number(e.target.value || 0) * 100) })} aria-invalid={!!err('plan.monthlyCents') || undefined} /></div>
+              </Field>
+              {!!plan.fundChoices?.length && (
+                <Field id="f-plan-fund" label="Where your gift goes" error={err('plan.fund')}>
+                  <select id="f-plan-fund" className="input" value={d.plan.fund ?? ''} onChange={(e) => set('plan', { fund: e.target.value })} aria-invalid={!!err('plan.fund') || undefined}>
+                    <option value="">Choose a fund</option>
+                    {plan.fundChoices.map((f) => <option key={f} value={f}>{f}</option>)}
+                  </select>
+                </Field>
+              )}
+            </fieldset>
+          )}
+          {plan?.note && <div className="callout" data-tone="info" role="note"><p>{plan.note}</p></div>}
+          {price && <PriceBox total={baseCents} gross={plan?.term === 'recurring' ? monthly : price.grossCents + famCents} discount={plan?.term === 'recurring' ? 0 : price.discountCents} years={price.years} />}
+          <StepNav onBack={() => goTo(prevOf('plan'))} busy={busy} onSave={liveForm.helpers.saveForLater ? saveForLater : undefined} />
+        </form>
+      )}
+
+      {/* ---------- spouse / family members (only when the plan has them) ---------- */}
+      {d.step === 'family' && (
+        <form className="jf-step" aria-labelledby="st-h" onSubmit={nextFromFamily} noValidate>
+          <h2 id="st-h" tabIndex={-1} ref={headingRef}>{plan?.category === 'household' ? 'Your spouse' : 'Your family'}</h2>
           {plan?.category === 'household' && (
             <fieldset className="jf-fieldset">
               <legend>Your spouse</legend>
@@ -762,25 +808,6 @@ export function JoinFlow({ settings, form, initialPlan, mockMode = svc.DEMO, con
           )}
 
           <CustomSections sections={sectionsAt(liveForm, 'plan')} answers={d.custom} ctx={ctx} errors={errors} onChange={setCustom} filled={d.filled} />
-          {plan?.term === 'recurring' && (
-            <fieldset className="jf-fieldset">
-              <legend>Your monthly gift</legend>
-              <Field id="f-plan-monthlyCents" label="Amount each month" hint={`At least ${formatUSD(plan.priceCents)} a month. The first month is paid today.`} error={err('plan.monthlyCents')}>
-                <div className="input-group narrow-input"><span aria-hidden="true">$</span>
-                  <input id="f-plan-monthlyCents" className="input" type="number" inputMode="decimal" min={plan.priceCents / 100} step="1" value={(d.plan.monthlyCents || plan.priceCents) / 100}
-                    onChange={(e) => set('plan', { monthlyCents: Math.round(Number(e.target.value || 0) * 100) })} aria-invalid={!!err('plan.monthlyCents') || undefined} /></div>
-              </Field>
-              {!!plan.fundChoices?.length && (
-                <Field id="f-plan-fund" label="Where your gift goes" error={err('plan.fund')}>
-                  <select id="f-plan-fund" className="input" value={d.plan.fund ?? ''} onChange={(e) => set('plan', { fund: e.target.value })} aria-invalid={!!err('plan.fund') || undefined}>
-                    <option value="">Choose a fund</option>
-                    {plan.fundChoices.map((f) => <option key={f} value={f}>{f}</option>)}
-                  </select>
-                </Field>
-              )}
-            </fieldset>
-          )}
-          {plan?.note && <div className="callout" data-tone="info" role="note"><p>{plan.note}</p></div>}
           {plan?.familyMembers && (
             <fieldset className="jf-fieldset">
               <legend>Pay for family members</legend>
@@ -806,15 +833,15 @@ export function JoinFlow({ settings, form, initialPlan, mockMode = svc.DEMO, con
             </fieldset>
           )}
           {price && <PriceBox total={baseCents} gross={plan?.term === 'recurring' ? monthly : price.grossCents + famCents} discount={plan?.term === 'recurring' ? 0 : price.discountCents} years={price.years} />}
-          <StepNav onBack={() => goTo(prevOf('plan'))} busy={busy} onSave={liveForm.helpers.saveForLater ? saveForLater : undefined} />
+          <StepNav onBack={() => goTo(prevOf('family'))} busy={busy} onSave={liveForm.helpers.saveForLater ? saveForLater : undefined} />
         </form>
       )}
 
       {/* ---------- 4. Pledge ---------- */}
       {d.step === 'pledge' && (
         <form className="jf-step" aria-labelledby="st-h" onSubmit={nextFromPledge} noValidate>
-          <h2 id="st-h" tabIndex={-1} ref={headingRef}>Commitment and pledge</h2>
-          {memberClass(settings.rules, d.plan.memberClass).canVote && (   /* only the class that votes chooses a commitment (the organization's rule) */
+          <h2 id="st-h" tabIndex={-1} ref={headingRef}>{coreLabel(liveForm, 'pledge')}</h2>
+          {coreShown(liveForm, 'commitments') && memberClass(settings.rules, d.plan.memberClass).canVote && (   /* only the class that votes chooses a commitment (the organization's rule) */
             <fieldset className="jf-fieldset">
               <legend>Your commitment to the community</legend>
               <p className="hint">Choose at least one to be eligible to vote.</p>
@@ -828,21 +855,21 @@ export function JoinFlow({ settings, form, initialPlan, mockMode = svc.DEMO, con
             </fieldset>
           )}
           <fieldset className="jf-fieldset" id="f-pledge-pledgeAccepted">
-            <legend>Pledge</legend>
+            <legend className="sr-only">{coreLabel(liveForm, 'pledge')}</legend>
             <blockquote className="pledge-text">{settings.pledge.text}</blockquote>
-            <label className="check"><input type="checkbox" checked={d.pledge.pledgeAccepted} onChange={(e) => set('pledge', { pledgeAccepted: e.target.checked })} /> <span>I accept this pledge.</span></label>
+            <label className="check"><input type="checkbox" checked={d.pledge.pledgeAccepted} onChange={(e) => set('pledge', { pledgeAccepted: e.target.checked })} /> <span>{coreHelp(liveForm, 'pledge', 'I accept this pledge.')}</span></label>
             {err('pledge.pledgeAccepted') && <p className="field-error">{err('pledge.pledgeAccepted')}</p>}
           </fieldset>
-          <Field id="f-pledge-signature" label="Sign with your full name" hint={`Type: ${d.about.firstName} ${d.about.lastName}`} error={err('pledge.signature')}>
+          {coreShown(liveForm, 'signature') && <Field id="f-pledge-signature" label="Sign with your full name" hint={`Type: ${d.about.firstName} ${d.about.lastName}`} error={err('pledge.signature')}>
             <input id="f-pledge-signature" className="input signature" autoComplete="name" value={d.pledge.signature} onChange={(e) => set('pledge', { signature: e.target.value })}
               aria-invalid={!!err('pledge.signature') || undefined} aria-describedby={describedBy('f-pledge-signature', true, err('pledge.signature'))} />
-          </Field>
-          <fieldset className="jf-fieldset">
+          </Field>}
+          {coreShown(liveForm, 'consents') && <fieldset className="jf-fieldset">
             <legend>Messages from {org.shortName}</legend>
             <label className="check"><input type="checkbox" checked={d.pledge.emailConsent} onChange={(e) => set('pledge', { emailConsent: e.target.checked })} /> <span>{settings.consents.email.text}</span></label>
             {settings.flags.sms && <label className="check"><input type="checkbox" checked={d.pledge.smsConsent} onChange={(e) => set('pledge', { smsConsent: e.target.checked })} /> <span>{settings.consents.sms.text}{(settings.legal.termsUrl || settings.legal.privacyUrl) && <> See our {settings.legal.termsUrl && <a href={settings.legal.termsUrl} target="_blank" rel="noreferrer">Terms</a>}{settings.legal.termsUrl && settings.legal.privacyUrl ? ' and ' : ''}{settings.legal.privacyUrl && <a href={settings.legal.privacyUrl} target="_blank" rel="noreferrer">Privacy Policy</a>}.</>}</span></label>}
             <p className="hint">We always email receipts and notices about your membership.</p>
-          </fieldset>
+          </fieldset>}
           {settings.identity.policy.enabled && (
             <fieldset className="jf-fieldset" id="f-pledge-identityConsent">
               <legend>Identity check</legend>
@@ -880,18 +907,20 @@ export function JoinFlow({ settings, form, initialPlan, mockMode = svc.DEMO, con
             ]} />
             <ReviewBlock title="Plan" onEdit={() => goTo('plan')} rows={[
               [plan.term === 'recurring' ? `${plan.name} – ${formatUSD(monthly)} per month${d.plan.fund ? ` to ${d.plan.fund}` : ''}` : `${plan.name} – ${formatUSD(plan.priceCents)} ${plan.unit}${price.years > 1 ? `, ${price.years} years` : ''}`],
+            ]} />
+            {familyStep && <ReviewBlock title={plan.category === 'household' ? 'Your spouse' : 'Your family'} onEdit={() => goTo('family')} rows={[
               ...(plan.category === 'household' ? [[`Spouse: ${d.plan.spouse.firstName} ${d.plan.spouse.lastName} (${d.plan.spouse.email})`]] : []),
               ...members.map((m, i) => [`Family member ${i + 1}: ${m.firstName} ${m.lastName} (${m.email}) – ${formatUSD(plan.familyMembers!.perMemberCents * price.years)}`]),
-            ]} />
+            ]} />}
             {liveForm.sections.filter((sec) => !sec.hidden).map((sec) => {
               const rows = sec.fields.filter((f) => f.type !== 'info' && fieldShown(f, d.custom, ctx)).map((f) => [f.label, answerText(f, d.custom[f.id])] as const).filter(([, v]) => v);
               if (!rows.length) return null;
-              const target = sec.placement.startsWith('step-') ? `s:${sec.id}` : sec.placement;
+              const target = sec.placement.startsWith('step-') ? `s:${sec.id}` : sec.placement === 'plan' ? 'family' : sec.placement;
               return <ReviewBlock key={sec.id} title={sec.title} onEdit={() => goTo(target)} rows={rows.map(([l, v]) => [`${l}: ${v}`])} />;
             })}
-            <ReviewBlock title="Pledge" onEdit={() => goTo('pledge')} rows={[
-              [`Signed by ${d.pledge.signature}`],
-              [d.pledge.commitments.length ? `Commitments: ${settings.commitments.filter((c) => d.pledge.commitments.includes(c.id)).map((c) => c.label).join('; ')}` : 'No commitment chosen'],
+            <ReviewBlock title={coreLabel(liveForm, 'pledge')} onEdit={() => goTo('pledge')} rows={[
+              [coreShown(liveForm, 'signature') ? `Signed by ${d.pledge.signature}` : 'Accepted'],
+              ...(coreShown(liveForm, 'commitments') ? [[d.pledge.commitments.length ? `Commitments: ${settings.commitments.filter((c) => d.pledge.commitments.includes(c.id)).map((c) => c.label).join('; ')}` : 'No commitment chosen']] : []),
             ]} />
           </div>
 
