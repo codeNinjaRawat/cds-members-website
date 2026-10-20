@@ -65,6 +65,9 @@
 .row-actions { display: flex; gap: .7rem; flex-wrap: wrap; align-items: center; margin-top: .4rem; }
 .linkish { background: none; border: 0; padding: .4rem 0; color: var(--primary); font-weight: 600; text-decoration: underline; cursor: pointer; min-height: 40px; }
 .jf-note { background: var(--secondary); color: var(--secondary-foreground); border-radius: var(--radius); padding: .6rem 1rem; margin-bottom: 1rem; font-size: .93rem; }
+/* live autosave – quiet when saved, noticeable when not */
+.jf-autosave { font-size: .85rem; color: var(--muted-foreground); margin: 0 0 .75rem; text-align: right; }
+.jf-autosave.warn { color: var(--warning, #a15c00); text-align: left; }
 .jf-ok { color: var(--success); font-weight: 600; }
 .jf-test { font-size: .88rem; background: color-mix(in srgb, var(--highlight) 22%, var(--card)); border: 1px dashed var(--highlight); padding: .5rem .8rem; border-radius: var(--radius); }
 .error-summary { border: 2px solid var(--destructive); border-radius: var(--radius); padding: 1rem 1.2rem; margin-bottom: 1.2rem; background: color-mix(in srgb, var(--destructive) 6%, var(--card)); }

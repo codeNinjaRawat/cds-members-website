@@ -54,6 +54,23 @@ const initialDraft = (planId: string): Draft => ({
   custom: {}, filled: {}, idCaptured: false, mode: 'join',
 });
 
+/** A saved application (server) on top of a fresh form – every part kept, unknown parts ignored. */
+function mergeSaved(base: Draft, data: Record<string, unknown>, email: string, step: string): Draft {
+  const o = (k: string) => (data[k] && typeof data[k] === 'object' ? data[k] : {}) as Record<string, unknown>;
+  const plan = o('plan');
+  return {
+    ...base,
+    about: { ...base.about, ...(o('about') as Partial<Draft['about']>) },
+    lookup: (data.lookup as Draft['lookup']) ?? base.lookup,
+    plan: { ...base.plan, ...(plan as Partial<Draft['plan']>), spouse: { ...base.plan.spouse, ...((plan.spouse ?? {}) as Partial<Draft['plan']['spouse']>) } },
+    pledge: { ...base.pledge, ...(o('pledge') as Partial<Draft['pledge']>) },
+    payment: { ...base.payment, ...(o('payment') as Partial<Draft['payment']>) },
+    custom: { ...base.custom, ...(o('custom') as Answers) }, filled: { ...base.filled, ...(o('filled') as Record<string, string>) },
+    account: { ...base.account, email, verified: true },
+    step: !step || step === 'account' || step === 'done' ? 'about' : step,
+  };
+}
+
 const formatPhone = (v: string) => {
   const d = digits(v).replace(/^1(?=\d{10})/, '').slice(0, 10);
   if (d.length < 4) return d;
@@ -98,6 +115,8 @@ export function JoinFlow({ settings, form, initialPlan, mockMode = svc.DEMO, con
   const [notice, setNotice] = useState('');
   const [otp, setOtp] = useState({ sent: false, code: '', devCode: '', seconds: 0, existing: false });
   const [result, setResult] = useState<{ applicationId: string; amountCents: number; method?: string } | null>(null);
+  const [already, setAlready] = useState<svc.AlreadyApplied | null>(null);          // this email already has an application
+  const [saveState, setSaveState] = useState<'' | 'saving' | 'saved' | 'offline' | 'expired'>('');   // live autosave
   // Admin › Settings › Configuration › Payments / Discount codes (WildApricot: Payment settings, Discounts)
   const methods = config ? payMethods(config) : (['card'] as const);
   const [payMethod, setPayMethod] = useState<string>(methods[0] ?? 'card');
@@ -109,6 +128,21 @@ export function JoinFlow({ settings, form, initialPlan, mockMode = svc.DEMO, con
 
   /* autosave in this browser tab (sessionStorage – cleared when the tab closes; cross-device drafts come from BE later) */
   useEffect(() => {
+    if (!mockMode) {
+      // live: a saved application opens from its emailed link, or from this browser after the tab was closed
+      const resume = new URLSearchParams(window.location.search).get('resume') ?? '';
+      let session = false; try { session = !!sessionStorage.getItem(DRAFT_KEY); } catch { /* */ }
+      const token = /^[A-Za-z0-9_-]{30,80}$/.test(resume) ? resume : !session ? svc.liveResumeToken() : '';
+      if (token) {
+        setTask('verifyCode');
+        void svc.openSavedApplication(token).then((r) => {
+          setTask(null);
+          if (r.ok) { setD((x) => mergeSaved(x, r.saved.data, r.saved.email, r.saved.step)); setRestored(true); setNotice('Welcome back – your answers are just as you left them.'); }
+          else if (resume) setNotice(r.reason === 'sent' ? 'This application was already sent – we will email you when it is reviewed.' : r.reason === 'expired' ? 'That link has expired. Enter your email below – anything you saved before is still there.' : 'We could not open your saved application just now. Try again in a minute.');
+        });
+        return;
+      }
+    }
     try {
       const resume = new URLSearchParams(window.location.search).get('resume');
       const fromLink = resume && /^[a-z0-9]{8,40}$/.test(resume) ? localStorage.getItem(RESUME_PREFIX + resume) : null;
@@ -125,6 +159,17 @@ export function JoinFlow({ settings, form, initialPlan, mockMode = svc.DEMO, con
     if (d.step === 'done') { try { sessionStorage.removeItem(DRAFT_KEY); } catch { /* */ } return; }
     try { sessionStorage.setItem(DRAFT_KEY, JSON.stringify(d)); } catch { /* storage unavailable */ }
   }, [d]);
+  /* live: every answer is saved on the server shortly after it is typed – a closed tab, another device or an error
+     never loses it, and the office sees where someone stopped (Work queues › Incomplete applications) */
+  const progressRef = useRef({ index: 1, total: 6, label: 'About you' });
+  useEffect(() => {
+    if (mockMode || !d.account.verified || d.step === 'done' || d.step === 'account' || d.mode === 'renew') return;
+    setSaveState((s0) => (s0 === 'expired' ? s0 : 'saving'));
+    const t = window.setTimeout(() => {
+      void svc.saveApplicationDraft(d.step, d, progressRef.current).then((r) => setSaveState(r === 'saved' ? 'saved' : r === 'expired' ? 'expired' : r === 'sent' ? '' : 'offline'));
+    }, 1200);
+    return () => window.clearTimeout(t);
+  }, [d, mockMode]);
 
   /* live preview from the admin form builder */
   useEffect(() => {
@@ -188,6 +233,7 @@ export function JoinFlow({ settings, form, initialPlan, mockMode = svc.DEMO, con
   // an admin step is skipped when none of its questions apply (e.g. family-only questions on a Single plan)
   const STEPS = allSteps.filter((s) => !s.section || s.id === d.step || s.section.fields.some((f) => fieldShown(f, d.custom, ctx)));
   const stepIndex = STEPS.findIndex((s) => s.id === d.step);
+  progressRef.current = { index: Math.max(0, stepIndex), total: STEPS.length, label: STEPS[stepIndex]?.label ?? String(d.step) };
   const nextOf = (id: StepId) => STEPS[STEPS.findIndex((s) => s.id === id) + 1]?.id ?? 'review';
   const prevOf = (id: StepId) => STEPS[STEPS.findIndex((s) => s.id === id) - 1]?.id ?? 'account';
   const currentSection = allSteps.find((s) => s.id === d.step)?.section;
@@ -215,6 +261,14 @@ export function JoinFlow({ settings, form, initialPlan, mockMode = svc.DEMO, con
       const j = await svc.verifyCode(d.account.email, otp.code, 'join');
       if (!j.ok) return showErrors({ 'account.code': j.error === 'already_applied' && j.message ? j.message : j.error === 'unavailable' ? 'We could not reach the server. Check your connection and try again.' : 'That code is not right or has expired. Check the email or send a new code.' });
       if (j.existingMember) { setOtp((o) => ({ ...o, existing: true })); return; }
+      if (j.alreadyApplied) { setAlready(j.alreadyApplied); return; }
+      if (j.saved) {
+        const saved = j.saved;
+        setD((x) => mergeSaved(x, saved.data, d.account.email, saved.step)); setRestored(true);
+        requestAnimationFrame(() => { headingRef.current?.focus(); window.scrollTo({ top: 0, behavior: 'smooth' }); });
+        setNotice('Welcome back – we kept everything you filled in before. Pick up where you stopped.');
+        return;
+      }
       set('account', { verified: true });
       goTo('about');
     } catch { showErrors({ 'account.code': 'We could not check the code. Try again.' }); }
@@ -300,14 +354,18 @@ export function JoinFlow({ settings, form, initialPlan, mockMode = svc.DEMO, con
       goTo('done');
     } catch (err) {
       const fields = (err as { fields?: Record<string, string> }).fields;
+      const code = (err as { code?: string }).code;
+      if (code === 'verify-again') { set('account', { verified: false }); setOtp({ sent: false, code: '', devCode: '', seconds: 0, existing: false }); goTo('account'); setNotice('Please confirm your email once more – all your answers are kept and you will come straight back here.'); return; }
       if (fields && Object.keys(fields).length) showErrors(fields);
-      else showErrors({ form: err instanceof Error && !svc.DEMO ? `${err.message} Nothing was charged.` : 'We could not submit your application. Nothing was charged. Try again in a minute.' });
+      else showErrors({ form: err instanceof Error && !svc.DEMO ? `${err.message} Your answers are saved and nothing was charged – try again in a minute, or contact the office and we will finish it with you.` : 'We could not submit your application. Your answers are saved and nothing was charged. Try again in a minute.' });
     }
     finally { setTask(null); }
   };
 
   const startOver = () => {
     try { sessionStorage.removeItem(DRAFT_KEY); } catch { /* */ }
+    if (!mockMode) svc.forgetSavedApplication();   // this browser forgets it; the office still has what was given
+    setAlready(null); setSaveState('');
     setD(initialDraft(defaultPlan?.id ?? '')); setOtp({ sent: false, code: '', devCode: '', seconds: 0, existing: false }); setRestored(false); setErrors({});
   };
 
@@ -352,10 +410,18 @@ export function JoinFlow({ settings, form, initialPlan, mockMode = svc.DEMO, con
 
   /** Save and finish later (DEMO: link works in this browser; live: BE stores the draft encrypted for 30 days and emails/texts the link). */
   const [saved, setSaved] = useState<string | null>(null);
+  const [savedNote, setSavedNote] = useState('');
   const saveForLater = () => {
+    if (!mockMode) {
+      void svc.saveApplicationDraft(d.step, d, progressRef.current).then(() => svc.emailSavedApplication()).then((r) => {
+        setSaved(r.link || null);
+        setSavedNote(r.sent ? `Your answers are saved. We emailed this link to ${r.to ?? d.account.email} – it works for 30 days on any device.` : `Your answers are saved. ${r.message ?? 'We could not email the link just now'} – copy the link below to come back on any device.`);
+      });
+      return;
+    }
     const token = Math.random().toString(36).slice(2, 12) + Date.now().toString(36);
     try { localStorage.setItem(RESUME_PREFIX + token, JSON.stringify(d)); } catch { /* storage full */ }
-    setSaved(`${window.location.origin}/membership/join?resume=${token}`);
+    setSaved(`${window.location.origin}/membership/join?resume=${token}`); setSavedNote('Test mode: this link works in this browser only.');
   };
   const filledTag = (k: string) => d.filled[k] ? <span className="jf-filled">{d.filled[k]}</span> : null;
   const clearFilled = (k: string) => d.filled[k] && setD((x) => { const f = { ...x.filled }; delete f[k]; return { ...x, filled: f }; });
@@ -409,7 +475,22 @@ export function JoinFlow({ settings, form, initialPlan, mockMode = svc.DEMO, con
       )}
 
       {restored && d.step !== 'done' && (
-        <div className="jf-note" role="status">We restored your progress from earlier in this tab. <button type="button" className="linkish" onClick={startOver}>Start over</button></div>
+        <div className="jf-note" role="status">{mockMode ? 'We restored your progress from earlier in this tab.' : `Your saved application for ${d.account.email} is open.`} <button type="button" className="linkish" onClick={startOver}>{mockMode ? 'Start over' : 'Not you? Start over'}</button></div>
+      )}
+
+      {!mockMode && d.account.verified && d.step !== 'done' && d.step !== 'account' && saveState && (
+        <p className={`jf-autosave${saveState === 'offline' || saveState === 'expired' ? ' warn' : ''}`} role="status" aria-live="polite">
+          {saveState === 'saving' ? 'Saving…' : saveState === 'saved' ? '✓ Your answers are saved' : saveState === 'offline' ? 'Not saved yet – we will keep trying. Your answers are still on this page.' : 'Your saved link expired – confirm your email again at the end; your answers stay on this page.'}
+        </p>
+      )}
+
+      {already && (
+        <div className="callout" data-tone="info" role="status">
+          <b>We already have your application</b>
+          <p>{d.account.email} applied{already.submittedOn ? ` on ${fmtDay(already.submittedOn)}` : ''}{already.applicationId ? ` (application ${already.applicationId})` : ''}. It is {already.status === 'needs-info' ? 'waiting for a detail from you – check your email' : already.status === 'approved' ? 'approved' : 'with the office for review'} – there is nothing more to fill in. We will email you as soon as it moves.</p>
+          <p>Need to change something? Contact the office and mention your application number.</p>
+          <div className="row-actions"><Link className="btn btn-outline" href="/">Back to the home page</Link><button type="button" className="linkish" onClick={startOver}>Use a different email</button></div>
+        </div>
       )}
 
       {errorList.length > 0 && (
@@ -420,7 +501,7 @@ export function JoinFlow({ settings, form, initialPlan, mockMode = svc.DEMO, con
       )}
 
       {/* ---------- 1. Account ---------- */}
-      {d.step === 'account' && (
+      {d.step === 'account' && !already && (
         <section className="jf-step" aria-labelledby="st-h">
           <h2 id="st-h" tabIndex={-1} ref={headingRef}>Create your account</h2>
           <p className="jf-lead">Use Google, or get a {settings.otp.length}-digit code by email. No password to remember.</p>
@@ -445,7 +526,7 @@ export function JoinFlow({ settings, form, initialPlan, mockMode = svc.DEMO, con
               <ul className="trust">
                 <li>Your details are used only for your {org.shortName} membership.</li>
                 <li>Payments are handled by Stripe. We never see your card.</li>
-                <li>{liveForm.helpers.saveForLater ? 'You can save and finish later in this browser.' : 'You can save and finish later in this browser tab.'}</li>
+                <li>{mockMode ? 'You can save and finish later in this browser.' : 'Every answer is saved as you go – stop any time and finish later on any device.'}</li>
               </ul>
               <p className="fine">By continuing you agree to the <Link href="/terms">Terms of use</Link> and <Link href="/privacy">Privacy policy</Link>.</p>
             </div>
@@ -789,8 +870,8 @@ export function JoinFlow({ settings, form, initialPlan, mockMode = svc.DEMO, con
 
       {saved && (
         <div className="callout jf-saved" data-tone="info" role="status">
-          <b>Saved. Finish later with this link</b>
-          <p>{mockMode ? 'Test mode: this link works in this browser only.' : 'Copy or bookmark this link – it opens your saved answers in this browser for 30 days. Nothing has been sent to the office yet.'}</p>
+          <b>Saved. Finish any time with this link</b>
+          <p>{savedNote}</p>
           <div className="input-group"><input className="input" readOnly value={saved} aria-label="Link to continue your application" onFocus={(e) => e.target.select()} />
             <button type="button" className="btn btn-outline" onClick={() => { void navigator.clipboard?.writeText(saved); setNotice('Link copied.'); }}>Copy link</button></div>
           <button type="button" className="linkish" onClick={() => setSaved(null)}>Keep going now</button>

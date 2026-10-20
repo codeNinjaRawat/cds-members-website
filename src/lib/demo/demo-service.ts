@@ -35,6 +35,13 @@ const EXISTING = ['member@example.com', 'aisha@example.com'];
 export type CodePurpose = 'signin' | 'join';
 let joinToken = '';
 export const liveJoinToken = () => joinToken || (() => { try { return sessionStorage.getItem('ms-join-token') ?? ''; } catch { return ''; } })();
+/** Live: the 30-day link to the application saved on the server (kept in this browser so a closed tab loses nothing). */
+const RESUME_KEY = 'ms-join-resume';
+export const liveResumeToken = () => { try { return localStorage.getItem(RESUME_KEY) ?? ''; } catch { return ''; } };
+const keepResume = (t: string) => { try { if (t) localStorage.setItem(RESUME_KEY, t); else localStorage.removeItem(RESUME_KEY); } catch { /* storage off */ } };
+export const forgetSavedApplication = () => { keepResume(''); joinToken = ''; try { sessionStorage.removeItem('ms-join-token'); } catch { /* */ } };
+export type SavedApplication = { email: string; step: string; data: Record<string, unknown>; resumeToken: string };
+export type AlreadyApplied = { applicationId: string | null; submittedOn: string | null; status: string };
 
 export async function sendCode(email: string, purpose: CodePurpose = 'signin') {
   if (LIVE) {
@@ -46,14 +53,17 @@ export async function sendCode(email: string, purpose: CodePurpose = 'signin') {
   return { sent: true, demoCode: DEMO_CODE, email };
 }
 
-export async function verifyCode(email: string, code: string, purpose: CodePurpose = 'signin'): Promise<{ ok: true; existingMember: boolean; dashboards?: Dashboard[]; current?: number } | { ok: false; error: 'invalid_code' | 'unavailable' | 'already_applied'; message?: string }> {
+export async function verifyCode(email: string, code: string, purpose: CodePurpose = 'signin'): Promise<{ ok: true; existingMember: boolean; dashboards?: Dashboard[]; current?: number; saved?: SavedApplication | null; alreadyApplied?: AlreadyApplied } | { ok: false; error: 'invalid_code' | 'unavailable' | 'already_applied'; message?: string }> {
   if (LIVE) {
     if (purpose === 'join') {
-      const r = await be<{ joinToken: string }>('POST', 'public/join/email/verify', { email, code });
+      const r = await be<{ joinToken?: string; resumeToken?: string; resumed?: boolean; step?: string; data?: Record<string, unknown>; alreadyApplied?: AlreadyApplied }>('POST', 'public/join/email/verify', { email, code });
       if (!r.ok && r.status === 409 && r.data.code === 'already-member') return { ok: true, existingMember: true };   // shows "sign in / renew"
       if (!r.ok) return { ok: false, error: r.status === 0 ? 'unavailable' : r.status === 409 ? 'already_applied' : 'invalid_code', message: r.message };
-      joinToken = r.data.joinToken; try { sessionStorage.setItem('ms-join-token', joinToken); } catch { /* */ }
-      return { ok: true, existingMember: false };
+      if (r.data.alreadyApplied) return { ok: true, existingMember: false, alreadyApplied: r.data.alreadyApplied };   // shown, not refused
+      joinToken = r.data.joinToken ?? ''; try { sessionStorage.setItem('ms-join-token', joinToken); } catch { /* */ }
+      keepResume(r.data.resumeToken ?? '');
+      const data = r.data.data ?? {};
+      return { ok: true, existingMember: false, saved: r.data.resumed && Object.keys(data).length ? { email, step: r.data.step ?? 'about', data, resumeToken: r.data.resumeToken ?? '' } : null };
     }
     const r = await be<{ dashboards: Dashboard[]; current: number }>('POST', 'auth/code/verify', { address: email, code });
     if (!r.ok) return { ok: false, error: r.status === 0 ? 'unavailable' : 'invalid_code', message: r.message };
@@ -88,9 +98,9 @@ export type ApplicationAnswer = { applicationId: string; amountCents: number; pa
 /** Live: `body` is the whole application ({account, about, plan, pledge, payment, custom, checkout, …}); the API checks it all again. */
 export async function submitApplication(totalCents: number, body?: Record<string, unknown>): Promise<ApplicationAnswer> {
   if (LIVE) {
-    const r = await be<ApplicationAnswer>('POST', 'public/membership/applications', { ...body, joinToken: liveJoinToken() });
-    if (!r.ok) throw Object.assign(new Error(r.message), { fields: (r.data.detail ?? {}) as Record<string, string>, status: r.status });
-    joinToken = ''; try { sessionStorage.removeItem('ms-join-token'); } catch { /* */ }
+    const r = await be<ApplicationAnswer>('POST', 'public/membership/applications', { ...body, joinToken: liveJoinToken(), resumeToken: liveResumeToken() || undefined });
+    if (!r.ok) throw Object.assign(new Error(r.message), { fields: (r.data.detail ?? {}) as Record<string, string>, status: r.status, code: String(r.data.code ?? '') });
+    forgetSavedApplication();
     const co = r.data.payment?.checkout;
     if (co) { const c = await be<{ url: string }>('POST', 'public/checkout', co); if (c.ok) return { ...r.data, checkoutUrl: c.data.url }; }
     return r.data;
@@ -198,4 +208,32 @@ export async function give(input: { needId: string; amountCents: number; fund: '
   }
   await wait(2200);
   return { receipt: ref('GIFT'), ...input };
+}
+
+/* ---------- live: the application saved on the server as they go (nothing typed is lost) ---------- */
+/** Autosave – called after changes (debounced). false = could not save just now (the next change tries again). */
+export async function saveApplicationDraft(step: string, data: unknown, progress: { index: number; total: number; label: string }): Promise<'saved' | 'offline' | 'expired' | 'sent'> {
+  if (!LIVE) return 'saved';
+  const token = liveResumeToken(); if (!token) return 'expired';
+  const r = await be('PUT', 'public/join/draft', { resumeToken: token, step, data, progress });
+  if (r.ok) return 'saved';
+  if (r.status === 401) { keepResume(''); return 'expired'; }
+  if (r.status === 409) return 'sent';
+  return 'offline';
+}
+/** Open a saved application from its link (or from this browser). */
+export async function openSavedApplication(token: string): Promise<{ ok: true; saved: SavedApplication } | { ok: false; reason: 'expired' | 'sent' | 'offline'; message: string }> {
+  const r = await be<{ email: string; joinToken: string; resumeToken: string; step: string; data: Record<string, unknown> }>('GET', `public/join/draft/${encodeURIComponent(token)}`);
+  if (!r.ok) { if (r.status === 404 || r.status === 409) keepResume(''); return { ok: false, reason: r.status === 409 ? 'sent' : r.status === 404 ? 'expired' : 'offline', message: r.message }; }
+  joinToken = r.data.joinToken; try { sessionStorage.setItem('ms-join-token', joinToken); } catch { /* */ }
+  keepResume(r.data.resumeToken);
+  return { ok: true, saved: { email: r.data.email, step: r.data.step, data: r.data.data, resumeToken: r.data.resumeToken } };
+}
+/** Save and finish later: email the link (the answers are already saved). */
+export async function emailSavedApplication(): Promise<{ sent: boolean; link: string; to?: string; message?: string }> {
+  const token = liveResumeToken();
+  const link = typeof window === 'undefined' ? '' : `${window.location.origin}/membership/join?resume=${encodeURIComponent(token)}`;
+  if (!token) return { sent: false, link: '', message: 'Confirm your email first – then your answers are saved.' };
+  const r = await be<{ sent: boolean; to?: string; message?: string }>('POST', 'public/join/draft/link', { resumeToken: token });
+  return r.ok ? { sent: r.data.sent, link, to: r.data.to, message: r.data.message } : { sent: false, link, message: r.message };
 }
