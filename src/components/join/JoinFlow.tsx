@@ -434,7 +434,7 @@ export function JoinFlow({ settings, form, initialPlan, mockMode = svc.DEMO, con
               <ul className="trust">
                 <li>Your details are used only for ISGH membership.</li>
                 <li>Payments are handled by Stripe. We never see your card.</li>
-                <li>{liveForm.helpers.saveForLater ? 'You can save and finish later on any device.' : 'You can save and finish later in this browser tab.'}</li>
+                <li>{liveForm.helpers.saveForLater ? 'You can save and finish later in this browser.' : 'You can save and finish later in this browser tab.'}</li>
               </ul>
               <p className="fine">By continuing you agree to the <Link href="/terms">Terms of use</Link> and <Link href="/privacy">Privacy policy</Link>.</p>
             </div>
@@ -778,8 +778,8 @@ export function JoinFlow({ settings, form, initialPlan, mockMode = svc.DEMO, con
 
       {saved && (
         <div className="callout jf-saved" data-tone="info" role="status">
-          <b>Saved. Finish on any device with this link</b>
-          <p>{mockMode ? 'Test mode: in the live site we email this link to ' + (d.account.email || 'you') + (d.about.phone ? ' and text it to ' + d.about.phone : '') + '. It works for 30 days.' : 'We emailed and texted you this link. It works for 30 days.'}</p>
+          <b>Saved. Finish later with this link</b>
+          <p>{mockMode ? 'Test mode: this link works in this browser only.' : 'Copy or bookmark this link – it opens your saved answers in this browser for 30 days. Nothing has been sent to the office yet.'}</p>
           <div className="input-group"><input className="input" readOnly value={saved} aria-label="Link to continue your application" onFocus={(e) => e.target.select()} />
             <button type="button" className="btn btn-outline" onClick={() => { void navigator.clipboard?.writeText(saved); setNotice('Link copied.'); }}>Copy link</button></div>
           <button type="button" className="linkish" onClick={() => setSaved(null)}>Keep going now</button>
@@ -790,7 +790,7 @@ export function JoinFlow({ settings, form, initialPlan, mockMode = svc.DEMO, con
       {d.step === 'done' && result && (
         <section className="jf-step done" aria-labelledby="st-h">
           <h2 id="st-h" tabIndex={-1} ref={headingRef}>Application received</h2>
-          <p className="jf-lead">Thank you, {d.about.preferredName || d.about.firstName}. Your application number is <b>{result.applicationId}</b>. We sent a receipt for {formatUSD(result.amountCents)} to {d.account.email}.</p>
+          <p className="jf-lead">Thank you, {d.about.preferredName || d.about.firstName}. Your application number is <b>{result.applicationId}</b>. {result.amountCents === 0 ? `We will write to ${d.account.email} about the next steps.` : result.method === 'check' || result.method === 'cash' || result.method === 'payLater' ? `Your application waits for your payment of ${formatUSD(result.amountCents)} – we will email ${d.account.email} when it is received.` : `Your receipt for ${formatUSD(result.amountCents)} goes to ${d.account.email}.`}</p>
           <ol className="timeline">
             <li className="done"><b>Application submitted</b><span>Today</span></li>
             {result.method === 'check' || result.method === 'cash' || result.method === 'payLater'

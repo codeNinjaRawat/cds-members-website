@@ -23,6 +23,10 @@ import { NavProgress } from '@/components/ui/NavProgress';
 import { currentTenant } from '@/lib/api/demo-store';
 import { TenantClosed } from '@/components/layout/TenantClosed';
 
+/** Every page depends on the visitor's address (which organization's site this is) – nothing may be baked in at build
+ * time, and a page that reads the address must never be treated as static (Next.js answers 500 "static to dynamic"). */
+export const dynamic = 'force-dynamic';
+
 const display = Bricolage_Grotesque({ subsets: ['latin'], axes: ['opsz', 'wdth'], variable: '--font-bricolage', display: 'swap' });
 const body = Public_Sans({ subsets: ['latin'], variable: '--font-public-sans', display: 'swap' });
 /** Quran verses (CMS › Giving) – Arabic naskh face; only the Arabic subset is downloaded */
