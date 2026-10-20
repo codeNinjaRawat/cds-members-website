@@ -46,11 +46,12 @@ export async function sendCode(email: string, purpose: CodePurpose = 'signin') {
   return { sent: true, demoCode: DEMO_CODE, email };
 }
 
-export async function verifyCode(email: string, code: string, purpose: CodePurpose = 'signin'): Promise<{ ok: true; existingMember: boolean; dashboards?: Dashboard[]; current?: number } | { ok: false; error: 'invalid_code' | 'unavailable'; message?: string }> {
+export async function verifyCode(email: string, code: string, purpose: CodePurpose = 'signin'): Promise<{ ok: true; existingMember: boolean; dashboards?: Dashboard[]; current?: number } | { ok: false; error: 'invalid_code' | 'unavailable' | 'already_applied'; message?: string }> {
   if (LIVE) {
     if (purpose === 'join') {
       const r = await be<{ joinToken: string }>('POST', 'public/join/email/verify', { email, code });
-      if (!r.ok) return { ok: false, error: r.status === 0 ? 'unavailable' : 'invalid_code', message: r.message };
+      if (!r.ok && r.status === 409 && r.data.code === 'already-member') return { ok: true, existingMember: true };   // shows "sign in / renew"
+      if (!r.ok) return { ok: false, error: r.status === 0 ? 'unavailable' : r.status === 409 ? 'already_applied' : 'invalid_code', message: r.message };
       joinToken = r.data.joinToken; try { sessionStorage.setItem('ms-join-token', joinToken); } catch { /* */ }
       return { ok: true, existingMember: false };
     }

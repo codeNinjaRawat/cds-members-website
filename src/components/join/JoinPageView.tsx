@@ -3,14 +3,14 @@ import Link from 'next/link';
 import type { MembershipSettings } from '@/lib/content/membership';
 import type { ImageRef } from '@/lib/content/home';
 import { Photo } from '@/components/ui/Photo';
-import { JoinFlow } from './JoinFlow';
+import { JoinFlow, type OrgNames } from './JoinFlow';
 import { defaultJoinForm, type JoinForm } from '@/lib/join/form-def';
 import type { Giving } from '@/lib/content/giving';
 import type { OrgConfig } from '@/lib/community/org-config';
 
-type Props = { settings: MembershipSettings; form?: JoinForm; initialPlan?: string; mockMode?: boolean; images?: ImageRef[]; giving?: Giving; config?: OrgConfig };
+type Props = { settings: MembershipSettings; form?: JoinForm; initialPlan?: string; mockMode?: boolean; images?: ImageRef[]; giving?: Giving; config?: OrgConfig; org?: OrgNames };
 
-export function JoinPageView({ settings, form = defaultJoinForm, initialPlan, mockMode, images = [], giving, config }: Props) {
+export function JoinPageView({ settings, form = defaultJoinForm, initialPlan, mockMode, images = [], giving, config, org = { name: 'our organization', shortName: 'the organization' } }: Props) {
   const verse = giving?.verses.find((v) => v.ref === '3:92') ?? giving?.verses[0];
   return (
     <div className="join-page">
@@ -18,7 +18,7 @@ export function JoinPageView({ settings, form = defaultJoinForm, initialPlan, mo
         <div className="wrap join-hero-grid">
           <div>
             <h1>Become a member</h1>
-            <p className="join-lead">Join the Islamic Society of Greater Houston in about five minutes. Your membership supports {settings.serviceArea.label}&apos;s Islamic Centers and gives you a voice in ISGH elections.</p>
+            <p className="join-lead">Join {org.name} in about five minutes. Your membership supports {settings.serviceArea.label}&apos;s Islamic Centers and gives you a voice in {org.shortName} elections.</p>
             <ul className="join-facts">
               <li>Membership runs January 1 to December 31, {settings.year}.</li>
               <li>Pay by June 30 to vote in that year&apos;s elections.</li>
@@ -34,7 +34,7 @@ export function JoinPageView({ settings, form = defaultJoinForm, initialPlan, mo
         </div>
       </section>
       <div className="wrap">
-        <JoinFlow settings={settings} form={form} initialPlan={initialPlan} mockMode={mockMode} config={config} />
+        <JoinFlow settings={settings} form={form} initialPlan={initialPlan} mockMode={mockMode} config={config} org={org} />
       </div>
       {giving && (
         <section className="join-why" aria-labelledby="jw-h">

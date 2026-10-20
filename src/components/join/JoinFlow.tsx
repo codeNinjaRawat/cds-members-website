@@ -76,7 +76,10 @@ const describedBy = (id: string, hint?: boolean, error?: string) =>
   [hint ? `${id}-hint` : '', error ? `${id}-error` : ''].filter(Boolean).join(' ') || undefined;
 
 /* ---------------- main ---------------- */
-export function JoinFlow({ settings, form, initialPlan, mockMode = svc.DEMO, config }: { settings: MembershipSettings; form: JoinForm; initialPlan?: string; mockMode?: boolean; config?: OrgConfig }) {
+/** The organization's names for the text below (site config) – never a client's name written into the product. */
+export type OrgNames = { name: string; shortName: string };
+
+export function JoinFlow({ settings, form, initialPlan, mockMode = svc.DEMO, config, org = { name: 'our organization', shortName: 'the organization' } }: { settings: MembershipSettings; form: JoinForm; initialPlan?: string; mockMode?: boolean; config?: OrgConfig; org?: OrgNames }) {
   // the admin's live preview can push an unsaved form definition into this page (PreviewBridge → event)
   const [liveForm, setLiveForm] = useState<JoinForm>(form);
   const schemas = useMemo(() => makeJoinSchemas(settings), [settings]);
@@ -165,7 +168,15 @@ export function JoinFlow({ settings, form, initialPlan, mockMode = svc.DEMO, con
   const offline = payMethod === 'check' || payMethod === 'cash' || payMethod === 'payLater';
   // V1 – the classes are the organization's words; when only one is offered the question is skipped
   const offeredClasses = (['natural', 'associate'] as const).map((k) => [k, memberClass(settings.rules, k)] as const).filter(([, c]) => c.offered && plans.some((p) => p.memberClass === c.key)).map(([k, c]) => [k, `As ${/^[aeiou]/i.test(c.label) ? 'an' : 'a'} ${c.label.toLowerCase()}`, c.blurb] as const);
-  useEffect(() => { if (offeredClasses.length && !offeredClasses.some(([k]) => k === d.plan.memberClass)) { const k = offeredClasses[0][0]; const first = plans.find((p) => p.memberClass === k && p.featured) ?? plans.find((p) => p.memberClass === k); set('plan', { memberClass: k, planId: first?.id ?? '', years: 1 }); } }, [offeredClasses.length]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Keep class and plan consistent with what is offered – also after "Start over" or a restored draft (a class or plan
+  // the organization no longer offers would otherwise leave an empty plan list and no way to continue).
+  useEffect(() => {
+    if (!offeredClasses.length) return;
+    const k = offeredClasses.some(([c]) => c === d.plan.memberClass) ? d.plan.memberClass : offeredClasses[0][0];
+    if (k === d.plan.memberClass && plans.some((p) => p.id === d.plan.planId && p.memberClass === k)) return;
+    const first = plans.find((p) => p.memberClass === k && p.featured) ?? plans.find((p) => p.memberClass === k);
+    set('plan', { memberClass: k, planId: first?.id ?? '', years: 1 });
+  }, [offeredClasses.length, plans.length, d.plan.memberClass, d.plan.planId]); // eslint-disable-line react-hooks/exhaustive-deps
   const preview = votingPreview(settings, { dob: d.about.dob, memberClass: d.plan.memberClass, planId: d.plan.planId, commitments: d.pledge.commitments, state: d.about.state, payer: d.payment.payer });
   const ctx: FormCtx = { planId: d.plan.planId, planCategory: plan?.category ?? '', memberClass: d.plan.memberClass, age: d.about.dob ? ageOnRecord(d.about.dob, new Date().toISOString().slice(0, 10)) : null };
   const ownSteps = (p: Placement): StepDef[] => sectionsAt(liveForm, p).map((sec) => ({ id: `s:${sec.id}`, label: sec.title, section: sec }));
@@ -202,7 +213,7 @@ export function JoinFlow({ settings, form, initialPlan, mockMode = svc.DEMO, con
     setTask('verifyCode');
     try {
       const j = await svc.verifyCode(d.account.email, otp.code, 'join');
-      if (!j.ok) return showErrors({ 'account.code': 'That code is not right or has expired. Check the email or send a new code.' });
+      if (!j.ok) return showErrors({ 'account.code': j.error === 'already_applied' && j.message ? j.message : j.error === 'unavailable' ? 'We could not reach the server. Check your connection and try again.' : 'That code is not right or has expired. Check the email or send a new code.' });
       if (j.existingMember) { setOtp((o) => ({ ...o, existing: true })); return; }
       set('account', { verified: true });
       goTo('about');
@@ -432,7 +443,7 @@ export function JoinFlow({ settings, form, initialPlan, mockMode = svc.DEMO, con
                 )}
               </form>
               <ul className="trust">
-                <li>Your details are used only for ISGH membership.</li>
+                <li>Your details are used only for your {org.shortName} membership.</li>
                 <li>Payments are handled by Stripe. We never see your card.</li>
                 <li>{liveForm.helpers.saveForLater ? 'You can save and finish later in this browser.' : 'You can save and finish later in this browser tab.'}</li>
               </ul>
@@ -440,7 +451,7 @@ export function JoinFlow({ settings, form, initialPlan, mockMode = svc.DEMO, con
             </div>
           ) : otp.existing ? (
             <div className="callout" data-tone="info">
-              <b>You already have an ISGH membership</b>
+              <b>You already have {/^the /.test(org.shortName) ? 'a' : /^[aeiou]/i.test(org.shortName) ? 'an' : 'a'} {org.shortName.replace(/^the /, '')} membership</b>
               <p>{d.account.email} is linked to an existing member. {liveForm.helpers.renewPrefill ? 'Renew now – we fill in last year’s answers so you only check what changed.' : 'Sign in to renew or update it, so your history and voting record stay together.'}</p>
               <div className="row-actions">
                 {liveForm.helpers.renewPrefill && <button type="button" className="btn btn-primary" onClick={startRenewal}>Renew with last year’s details</button>}
@@ -560,7 +571,7 @@ export function JoinFlow({ settings, form, initialPlan, mockMode = svc.DEMO, con
               {!d.about.centerId ? (
                 <button type="button" className="btn btn-outline" onClick={() => void findCenter()} disabled={busy} data-busy={task === 'lookup' || undefined}>{task === 'lookup' ? 'Looking up…' : 'Find my Islamic Center'}</button>
               ) : d.lookup && (
-                <CenterResult lookup={d.lookup} serviceArea={settings.serviceArea.label} borderChoice={d.about.borderRequestCenterId}
+                <CenterResult org={org} lookup={d.lookup} serviceArea={settings.serviceArea.label} borderChoice={d.about.borderRequestCenterId}
                   onBorder={(id) => set('about', { borderRequestCenterId: id })} />
               )}
               <SmartLoader plan={LOADER_PLANS.lookup} active={task === 'lookup'} expectedMs={1100} />
@@ -670,7 +681,7 @@ export function JoinFlow({ settings, form, initialPlan, mockMode = svc.DEMO, con
               aria-invalid={!!err('pledge.signature') || undefined} aria-describedby={describedBy('f-pledge-signature', true, err('pledge.signature'))} />
           </Field>
           <fieldset className="jf-fieldset">
-            <legend>Messages from ISGH</legend>
+            <legend>Messages from {org.shortName}</legend>
             <label className="check"><input type="checkbox" checked={d.pledge.emailConsent} onChange={(e) => set('pledge', { emailConsent: e.target.checked })} /> <span>{settings.consents.email.text}</span></label>
             {settings.flags.sms && <label className="check"><input type="checkbox" checked={d.pledge.smsConsent} onChange={(e) => set('pledge', { smsConsent: e.target.checked })} /> <span>{settings.consents.sms.text}{(settings.legal.termsUrl || settings.legal.privacyUrl) && <> See our {settings.legal.termsUrl && <a href={settings.legal.termsUrl} target="_blank" rel="noreferrer">Terms</a>}{settings.legal.termsUrl && settings.legal.privacyUrl ? ' and ' : ''}{settings.legal.privacyUrl && <a href={settings.legal.privacyUrl} target="_blank" rel="noreferrer">Privacy Policy</a>}.</>}</span></label>}
             <p className="hint">We always email receipts and notices about your membership.</p>
@@ -748,7 +759,7 @@ export function JoinFlow({ settings, form, initialPlan, mockMode = svc.DEMO, con
                   <input id="f-payment-payerName" className="input" value={d.payment.payerName} onChange={(e) => set('payment', { payerName: e.target.value })}
                     aria-invalid={!!err('payment.payerName') || undefined} aria-describedby={describedBy('f-payment-payerName', false, err('payment.payerName'))} />
                 </Field>
-                <Field id="f-payment-payerRelationship" label="How are they related to you?" hint="ISGH Bylaws allow dues to be paid only by a relative by blood or marriage." error={err('payment.payerRelationship')}>
+                <Field id="f-payment-payerRelationship" label="How are they related to you?" hint={`${org.shortName} rules allow dues to be paid only by a relative by blood or marriage.`} error={err('payment.payerRelationship')}>
                   <select id="f-payment-payerRelationship" className="input" value={d.payment.payerRelationship} onChange={(e) => set('payment', { payerRelationship: e.target.value })}
                     aria-invalid={!!err('payment.payerRelationship') || undefined} aria-describedby={describedBy('f-payment-payerRelationship', true, err('payment.payerRelationship'))}>
                     <option value="">Choose one</option>
@@ -766,7 +777,7 @@ export function JoinFlow({ settings, form, initialPlan, mockMode = svc.DEMO, con
               onApply={() => { const r = applyDiscount(config, code, price.totalCents, { kind: 'plan', planId: plan?.id }, new Date().toISOString().slice(0, 10)); if (r.ok) { setApplied({ code: code.trim().toUpperCase(), cents: r.cents, message: r.message }); setErrors((x) => { const n = { ...x }; delete n['payment.code']; return n; }); } else { setApplied(null); setErrors((x) => ({ ...x, 'payment.code': r.message })); } }}
               codeError={err('payment.code')} total={finalCents} />
           )}
-          <p className="hint">{config?.payments.refundPolicy || 'Dues are not refundable.'} Card payments are processed securely by Stripe; ISGH never sees your card number.</p>
+          <p className="hint">{config?.payments.refundPolicy || 'Dues are not refundable.'} Card payments are processed securely by Stripe; {org.shortName} never sees your card number.</p>
           {mockMode && <p className="jf-test">Test mode: no card is charged and no payment page opens.</p>}
           {err('form') && <p className="field-error" id="f-form">{err('form')}</p>}
           <div className="step-nav">
@@ -929,12 +940,12 @@ function ReviewBlock({ title, rows, onEdit }: { title: string; rows: string[][];
   );
 }
 
-function CenterResult({ lookup, serviceArea, borderChoice, onBorder }: { lookup: LookupResult; serviceArea: string; borderChoice: string; onBorder: (id: string) => void }) {
+function CenterResult({ lookup, serviceArea, borderChoice, onBorder, org }: { lookup: LookupResult; serviceArea: string; borderChoice: string; onBorder: (id: string) => void; org: OrgNames }) {
   if (!lookup.inServiceArea || !lookup.center) {
     return (
       <div className="callout" data-tone="warning">
         <b>This address is outside {serviceArea}</b>
-        <p>You can still join, but only members who live in {serviceArea} can vote in ISGH elections. Check the address if this looks wrong.</p>
+        <p>You can still join, but only members who live in {serviceArea} can vote in {org.shortName} elections. Check the address if this looks wrong.</p>
       </div>
     );
   }
@@ -943,7 +954,7 @@ function CenterResult({ lookup, serviceArea, borderChoice, onBorder }: { lookup:
       <svg width="28" height="28" viewBox="0 0 100 100" aria-hidden="true"><g fill="currentColor"><rect x="22" y="22" width="56" height="56" /><rect x="22" y="22" width="56" height="56" transform="rotate(45 50 50)" /></g></svg>
       <div>
         <p className="cr-title">{lookup.center.name}</p>
-        <p className="cr-sub">{lookup.zone?.name} zone{lookup.estimate ? ' (estimate from your ZIP – confirmed by ISGH staff)' : ''}</p>
+        <p className="cr-sub">{lookup.zone?.name} zone{lookup.estimate ? ` (estimate from your ZIP – confirmed by ${org.shortName} staff)` : ''}</p>
         {lookup.nearBorder && lookup.alternatives.length > 0 && (
           <fieldset className="border-choice">
             <legend>You live near a zone border. Which center do you want?</legend>
