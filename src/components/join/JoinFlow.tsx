@@ -36,7 +36,7 @@ type Draft = {
   about: { firstName: string; middleName: string; lastName: string; preferredName: string; dob: string; phone: string;
     street: string; unit: string; city: string; state: string; zip: string; centerId: string; zoneId: string; borderRequestCenterId: string };
   lookup: LookupResult | null;
-  plan: { memberClass: 'natural' | 'associate'; planId: string; years: number; spouse: { firstName: string; lastName: string; email: string }; members: FamilyMember[] };
+  plan: { memberClass: 'natural' | 'associate'; planId: string; years: number; spouse: { firstName: string; lastName: string; email: string }; members: FamilyMember[]; monthlyCents?: number; fund?: string };
   pledge: { commitments: string[]; pledgeAccepted: boolean; signature: string; emailConsent: boolean; smsConsent: boolean; identityConsent?: boolean };
   payment: { payer: 'self' | 'relative'; payerRelationship: string; payerName: string };
   custom: Answers;                       // answers to the admin's questions (by field id)
@@ -214,7 +214,9 @@ export function JoinFlow({ settings, form, initialPlan, mockMode = svc.DEMO, con
   const price = plan ? quote(plan, d.plan.years) : null;
   const members = plan?.familyMembers ? (d.plan.members ?? []) : [];
   const famCents = price ? familyCents(plan, members.length, price.years) : 0;   // "pay for family members"
-  const baseCents = price ? price.totalCents + famCents : 0;
+  // monthly plans: the person picks the amount (at least the plan's minimum) – the first month is paid now
+  const monthly = plan?.term === 'recurring' ? Math.max(plan.priceCents, d.plan.monthlyCents || plan.priceCents) : 0;
+  const baseCents = !price ? 0 : plan?.term === 'recurring' ? monthly : price.totalCents + famCents;
   const afterCode = price ? (applied ? applied.cents : baseCents) : 0;
   const feeCents = config && coverFees ? feeCover(config, afterCode, payMethod) : 0;
   const finalCents = afterCode + feeCents;
@@ -321,7 +323,7 @@ export function JoinFlow({ settings, form, initialPlan, mockMode = svc.DEMO, con
 
   const nextFromPlan = (e: FormEvent) => {
     e.preventDefault();
-    const r = schemas.plan.safeParse({ ...d.plan, members });
+    const r = schemas.plan.safeParse({ ...d.plan, members, monthlyCents: plan?.term === 'recurring' ? monthly : undefined });
     const errs: Record<string, string> = { ...(r.success ? {} : prefix('plan', fieldErrors(r.error))), ...customErrors('plan') };
     if (plan?.category === 'household' && d.plan.spouse.email.trim() && d.plan.spouse.email.trim().toLowerCase() === d.account.email.trim().toLowerCase())
       errs['plan.spouse.email'] = 'Your spouse needs their own email address – not the same as yours.';
@@ -355,7 +357,7 @@ export function JoinFlow({ settings, form, initialPlan, mockMode = svc.DEMO, con
     const pay = schemas.payment.safeParse(d.payment);
     if (!pay.success) return showErrors(prefix('payment', fieldErrors(pay.error)));
     const body = {
-      account: d.account, about: d.about, plan: { ...d.plan, spouse: plan?.category === 'household' ? d.plan.spouse : undefined, members: members.length ? members : undefined },
+      account: d.account, about: d.about, plan: { ...d.plan, spouse: plan?.category === 'household' ? d.plan.spouse : undefined, members: members.length ? members : undefined, monthlyCents: plan?.term === 'recurring' ? monthly : undefined, fund: plan?.term === 'recurring' ? (d.plan.fund ?? '') : undefined },
       pledge: d.pledge, payment: d.payment,
       pledgeVersion: settings.pledge.version, emailConsentVersion: settings.consents.email.version, smsConsentVersion: settings.consents.sms.version,
       identityConsentVersion: settings.identity.consentRequired && d.pledge.identityConsent ? settings.identity.consentVersion : '',
@@ -760,6 +762,25 @@ export function JoinFlow({ settings, form, initialPlan, mockMode = svc.DEMO, con
           )}
 
           <CustomSections sections={sectionsAt(liveForm, 'plan')} answers={d.custom} ctx={ctx} errors={errors} onChange={setCustom} filled={d.filled} />
+          {plan?.term === 'recurring' && (
+            <fieldset className="jf-fieldset">
+              <legend>Your monthly gift</legend>
+              <Field id="f-plan-monthlyCents" label="Amount each month" hint={`At least ${formatUSD(plan.priceCents)} a month. The first month is paid today.`} error={err('plan.monthlyCents')}>
+                <div className="input-group narrow-input"><span aria-hidden="true">$</span>
+                  <input id="f-plan-monthlyCents" className="input" type="number" inputMode="decimal" min={plan.priceCents / 100} step="1" value={(d.plan.monthlyCents || plan.priceCents) / 100}
+                    onChange={(e) => set('plan', { monthlyCents: Math.round(Number(e.target.value || 0) * 100) })} aria-invalid={!!err('plan.monthlyCents') || undefined} /></div>
+              </Field>
+              {!!plan.fundChoices?.length && (
+                <Field id="f-plan-fund" label="Where your gift goes" error={err('plan.fund')}>
+                  <select id="f-plan-fund" className="input" value={d.plan.fund ?? ''} onChange={(e) => set('plan', { fund: e.target.value })} aria-invalid={!!err('plan.fund') || undefined}>
+                    <option value="">Choose a fund</option>
+                    {plan.fundChoices.map((f) => <option key={f} value={f}>{f}</option>)}
+                  </select>
+                </Field>
+              )}
+            </fieldset>
+          )}
+          {plan?.note && <div className="callout" data-tone="info" role="note"><p>{plan.note}</p></div>}
           {plan?.familyMembers && (
             <fieldset className="jf-fieldset">
               <legend>Pay for family members</legend>
@@ -784,7 +805,7 @@ export function JoinFlow({ settings, form, initialPlan, mockMode = svc.DEMO, con
               {members.length < plan.familyMembers.max && <button type="button" className="btn btn-outline" onClick={() => set('plan', { members: [...members, { ...NEW_MEMBER }] })}>+ Add a family member</button>}
             </fieldset>
           )}
-          {price && <PriceBox total={baseCents} gross={price.grossCents + famCents} discount={price.discountCents} years={price.years} />}
+          {price && <PriceBox total={baseCents} gross={plan?.term === 'recurring' ? monthly : price.grossCents + famCents} discount={plan?.term === 'recurring' ? 0 : price.discountCents} years={price.years} />}
           <StepNav onBack={() => goTo(prevOf('plan'))} busy={busy} onSave={liveForm.helpers.saveForLater ? saveForLater : undefined} />
         </form>
       )}
@@ -858,7 +879,7 @@ export function JoinFlow({ settings, form, initialPlan, mockMode = svc.DEMO, con
               [d.lookup?.center ? `${d.lookup.center.name} (${d.lookup.zone?.name} zone)${d.about.borderRequestCenterId ? ' – border change requested' : ''}` : 'Outside the service area'],
             ]} />
             <ReviewBlock title="Plan" onEdit={() => goTo('plan')} rows={[
-              [`${plan.name} – ${formatUSD(plan.priceCents)} ${plan.unit}${price.years > 1 ? `, ${price.years} years` : ''}`],
+              [plan.term === 'recurring' ? `${plan.name} – ${formatUSD(monthly)} per month${d.plan.fund ? ` to ${d.plan.fund}` : ''}` : `${plan.name} – ${formatUSD(plan.priceCents)} ${plan.unit}${price.years > 1 ? `, ${price.years} years` : ''}`],
               ...(plan.category === 'household' ? [[`Spouse: ${d.plan.spouse.firstName} ${d.plan.spouse.lastName} (${d.plan.spouse.email})`]] : []),
               ...members.map((m, i) => [`Family member ${i + 1}: ${m.firstName} ${m.lastName} (${m.email}) – ${formatUSD(plan.familyMembers!.perMemberCents * price.years)}`]),
             ]} />
@@ -907,7 +928,7 @@ export function JoinFlow({ settings, form, initialPlan, mockMode = svc.DEMO, con
             )}
           </fieldset>
 
-          <PriceBox total={baseCents} gross={price.grossCents + famCents} discount={price.discountCents} years={price.years} />
+          <PriceBox total={baseCents} gross={plan?.term === 'recurring' ? monthly : price.grossCents + famCents} discount={plan?.term === 'recurring' ? 0 : price.discountCents} years={price.years} />
           {config && (
             <PayOptions cfg={config} methods={methods} method={payMethod} onMethod={setPayMethod} cover={coverFees} onCover={setCoverFees} feeCents={feeCover(config, afterCode, payMethod === 'ach' ? 'ach' : 'card')}
               code={code} onCode={(c) => { setCode(c); setApplied(null); }} applied={applied}
