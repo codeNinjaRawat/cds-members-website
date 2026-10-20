@@ -10,7 +10,7 @@
  */
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
-import { formatUSD, memberClass, quote, type MembershipSettings } from '@/lib/content/membership';
+import { familyCents, formatUSD, memberClass, quote, type MembershipSettings } from '@/lib/content/membership';
 import { fmtDay, termFor } from '@/lib/content/renewal';
 import { digits, fieldErrors, makeJoinSchemas, US_STATES, votingPreview } from '@/lib/join/schema';
 import type { LookupResult } from '@/lib/join/residency';
@@ -28,13 +28,15 @@ type StepDef = { id: StepId; label: string; section?: JoinSection };
 const RESUME_PREFIX = 'isgh-join-resume:';
 const DRAFT_KEY = 'isgh-join-draft-v1';
 
+type FamilyMember = { firstName: string; lastName: string; email: string; phone: string; dob: string };
+const NEW_MEMBER: FamilyMember = { firstName: '', lastName: '', email: '', phone: '', dob: '' };
 type Draft = {
   step: StepId;
   account: { email: string; verified: boolean; provider?: 'email' | 'google' };
   about: { firstName: string; middleName: string; lastName: string; preferredName: string; dob: string; phone: string;
     street: string; unit: string; city: string; state: string; zip: string; centerId: string; zoneId: string; borderRequestCenterId: string };
   lookup: LookupResult | null;
-  plan: { memberClass: 'natural' | 'associate'; planId: string; years: number; spouse: { firstName: string; lastName: string; email: string } };
+  plan: { memberClass: 'natural' | 'associate'; planId: string; years: number; spouse: { firstName: string; lastName: string; email: string }; members: FamilyMember[] };
   pledge: { commitments: string[]; pledgeAccepted: boolean; signature: string; emailConsent: boolean; smsConsent: boolean; identityConsent?: boolean };
   payment: { payer: 'self' | 'relative'; payerRelationship: string; payerName: string };
   custom: Answers;                       // answers to the admin's questions (by field id)
@@ -49,7 +51,7 @@ const initialDraft = (planId: string): Draft => ({
   account: { email: '', verified: false },
   about: { firstName: '', middleName: '', lastName: '', preferredName: '', dob: '', phone: '', street: '', unit: '', city: 'Houston', state: 'TX', zip: '', centerId: '', zoneId: '', borderRequestCenterId: '' },
   lookup: null,
-  plan: { memberClass: 'natural', planId, years: 1, spouse: { firstName: '', lastName: '', email: '' } },
+  plan: { memberClass: 'natural', planId, years: 1, spouse: { firstName: '', lastName: '', email: '' }, members: [] },
   pledge: { commitments: [], pledgeAccepted: false, signature: '', emailConsent: false, smsConsent: false, identityConsent: false },
   payment: { payer: 'self', payerRelationship: '', payerName: '' },
   custom: {}, filled: {}, idCaptured: false, mode: 'join',
@@ -63,7 +65,7 @@ function mergeSaved(base: Draft, data: Record<string, unknown>, email: string, s
     ...base,
     about: { ...base.about, ...(o('about') as Partial<Draft['about']>) },
     lookup: (data.lookup as Draft['lookup']) ?? base.lookup,
-    plan: { ...base.plan, ...(plan as Partial<Draft['plan']>), spouse: { ...base.plan.spouse, ...((plan.spouse ?? {}) as Partial<Draft['plan']['spouse']>) } },
+    plan: { ...base.plan, ...(plan as Partial<Draft['plan']>), spouse: { ...base.plan.spouse, ...((plan.spouse ?? {}) as Partial<Draft['plan']['spouse']>) }, members: Array.isArray(plan.members) ? (plan.members as FamilyMember[]).map((m) => ({ ...NEW_MEMBER, ...m })) : [] },
     pledge: { ...base.pledge, ...(o('pledge') as Partial<Draft['pledge']>) },
     payment: { ...base.payment, ...(o('payment') as Partial<Draft['payment']>) },
     custom: { ...base.custom, ...(o('custom') as Answers) }, filled: { ...base.filled, ...(o('filled') as Record<string, string>) },
@@ -210,7 +212,10 @@ export function JoinFlow({ settings, form, initialPlan, mockMode = svc.DEMO, con
 
   const plan = plans.find((p) => p.id === d.plan.planId);
   const price = plan ? quote(plan, d.plan.years) : null;
-  const afterCode = price ? (applied ? applied.cents : price.totalCents) : 0;
+  const members = plan?.familyMembers ? (d.plan.members ?? []) : [];
+  const famCents = price ? familyCents(plan, members.length, price.years) : 0;   // "pay for family members"
+  const baseCents = price ? price.totalCents + famCents : 0;
+  const afterCode = price ? (applied ? applied.cents : baseCents) : 0;
   const feeCents = config && coverFees ? feeCover(config, afterCode, payMethod) : 0;
   const finalCents = afterCode + feeCents;
   const offline = payMethod === 'check' || payMethod === 'cash' || payMethod === 'payLater';
@@ -316,7 +321,7 @@ export function JoinFlow({ settings, form, initialPlan, mockMode = svc.DEMO, con
 
   const nextFromPlan = (e: FormEvent) => {
     e.preventDefault();
-    const r = schemas.plan.safeParse(d.plan);
+    const r = schemas.plan.safeParse({ ...d.plan, members });
     const errs: Record<string, string> = { ...(r.success ? {} : prefix('plan', fieldErrors(r.error))), ...customErrors('plan') };
     if (plan?.category === 'household' && d.plan.spouse.email.trim() && d.plan.spouse.email.trim().toLowerCase() === d.account.email.trim().toLowerCase())
       errs['plan.spouse.email'] = 'Your spouse needs their own email address – not the same as yours.';
@@ -350,7 +355,7 @@ export function JoinFlow({ settings, form, initialPlan, mockMode = svc.DEMO, con
     const pay = schemas.payment.safeParse(d.payment);
     if (!pay.success) return showErrors(prefix('payment', fieldErrors(pay.error)));
     const body = {
-      account: d.account, about: d.about, plan: { ...d.plan, spouse: plan?.category === 'household' ? d.plan.spouse : undefined },
+      account: d.account, about: d.about, plan: { ...d.plan, spouse: plan?.category === 'household' ? d.plan.spouse : undefined, members: members.length ? members : undefined },
       pledge: d.pledge, payment: d.payment,
       pledgeVersion: settings.pledge.version, emailConsentVersion: settings.consents.email.version, smsConsentVersion: settings.consents.sms.version,
       identityConsentVersion: settings.identity.consentRequired && d.pledge.identityConsent ? settings.identity.consentVersion : '',
@@ -755,7 +760,31 @@ export function JoinFlow({ settings, form, initialPlan, mockMode = svc.DEMO, con
           )}
 
           <CustomSections sections={sectionsAt(liveForm, 'plan')} answers={d.custom} ctx={ctx} errors={errors} onChange={setCustom} filled={d.filled} />
-          {price && <PriceBox total={price.totalCents} gross={price.grossCents} discount={price.discountCents} years={price.years} />}
+          {plan?.familyMembers && (
+            <fieldset className="jf-fieldset">
+              <legend>Pay for family members</legend>
+              <p className="hint">Add other adults ({settings.minMemberAge}+) who live with you – {formatUSD(plan.familyMembers.perMemberCents)} each {plan.unit}. Each one becomes a member with their own sign-in and vote; we email them to confirm.</p>
+              {members.map((m, i) => {
+                const put = (patch: Partial<FamilyMember>) => set('plan', { members: members.map((x, j) => (j === i ? { ...x, ...patch } : x)) });
+                const f = (k: keyof FamilyMember) => `plan.members.${i}.${k}`;
+                return (
+                  <div key={i} className="jf-member">
+                    <div className="row-actions"><b>Family member {i + 1}</b><button type="button" className="linkish" onClick={() => set('plan', { members: members.filter((_, j) => j !== i) })}>Remove</button></div>
+                    <div className="grid-2">
+                      <Field id={`f-plan-members-${i}-firstName`} label="First name" error={err(f('firstName'))}><input id={`f-plan-members-${i}-firstName`} className="input" autoComplete="off" value={m.firstName} onChange={(e) => put({ firstName: e.target.value })} aria-invalid={!!err(f('firstName')) || undefined} /></Field>
+                      <Field id={`f-plan-members-${i}-lastName`} label="Last name" error={err(f('lastName'))}><input id={`f-plan-members-${i}-lastName`} className="input" autoComplete="off" value={m.lastName} onChange={(e) => put({ lastName: e.target.value })} aria-invalid={!!err(f('lastName')) || undefined} /></Field>
+                      <Field id={`f-plan-members-${i}-email`} label="Their own email" hint="Their sign-in – not yours." error={err(f('email'))}><input id={`f-plan-members-${i}-email`} className="input" type="email" autoComplete="off" value={m.email} onChange={(e) => put({ email: e.target.value })} aria-invalid={!!err(f('email')) || undefined} /></Field>
+                      <Field id={`f-plan-members-${i}-phone`} label="Their mobile phone" error={err(f('phone'))}><input id={`f-plan-members-${i}-phone`} className="input" type="tel" inputMode="tel" placeholder="(713) 555-0123" value={m.phone} onChange={(e) => put({ phone: formatPhone(e.target.value) })} aria-invalid={!!err(f('phone')) || undefined} /></Field>
+                      <Field id={`f-plan-members-${i}-dob`} label="Date of birth" error={err(f('dob'))}><input id={`f-plan-members-${i}-dob`} className="input" type="date" value={m.dob} max={new Date().toISOString().slice(0, 10)} onChange={(e) => put({ dob: e.target.value })} aria-invalid={!!err(f('dob')) || undefined} /></Field>
+                    </div>
+                    <p className="hint">Address: same as yours ({[d.about.street, d.about.city].filter(Boolean).join(', ') || 'from the About you step'}).</p>
+                  </div>
+                );
+              })}
+              {members.length < plan.familyMembers.max && <button type="button" className="btn btn-outline" onClick={() => set('plan', { members: [...members, { ...NEW_MEMBER }] })}>+ Add a family member</button>}
+            </fieldset>
+          )}
+          {price && <PriceBox total={baseCents} gross={price.grossCents + famCents} discount={price.discountCents} years={price.years} />}
           <StepNav onBack={() => goTo(prevOf('plan'))} busy={busy} onSave={liveForm.helpers.saveForLater ? saveForLater : undefined} />
         </form>
       )}
@@ -831,6 +860,7 @@ export function JoinFlow({ settings, form, initialPlan, mockMode = svc.DEMO, con
             <ReviewBlock title="Plan" onEdit={() => goTo('plan')} rows={[
               [`${plan.name} – ${formatUSD(plan.priceCents)} ${plan.unit}${price.years > 1 ? `, ${price.years} years` : ''}`],
               ...(plan.category === 'household' ? [[`Spouse: ${d.plan.spouse.firstName} ${d.plan.spouse.lastName} (${d.plan.spouse.email})`]] : []),
+              ...members.map((m, i) => [`Family member ${i + 1}: ${m.firstName} ${m.lastName} (${m.email}) – ${formatUSD(plan.familyMembers!.perMemberCents * price.years)}`]),
             ]} />
             {liveForm.sections.filter((sec) => !sec.hidden).map((sec) => {
               const rows = sec.fields.filter((f) => f.type !== 'info' && fieldShown(f, d.custom, ctx)).map((f) => [f.label, answerText(f, d.custom[f.id])] as const).filter(([, v]) => v);
@@ -877,11 +907,11 @@ export function JoinFlow({ settings, form, initialPlan, mockMode = svc.DEMO, con
             )}
           </fieldset>
 
-          <PriceBox total={price.totalCents} gross={price.grossCents} discount={price.discountCents} years={price.years} />
+          <PriceBox total={baseCents} gross={price.grossCents + famCents} discount={price.discountCents} years={price.years} />
           {config && (
             <PayOptions cfg={config} methods={methods} method={payMethod} onMethod={setPayMethod} cover={coverFees} onCover={setCoverFees} feeCents={feeCover(config, afterCode, payMethod === 'ach' ? 'ach' : 'card')}
               code={code} onCode={(c) => { setCode(c); setApplied(null); }} applied={applied}
-              onApply={() => { const r = applyDiscount(config, code, price.totalCents, { kind: 'plan', planId: plan?.id }, new Date().toISOString().slice(0, 10)); if (r.ok) { setApplied({ code: code.trim().toUpperCase(), cents: r.cents, message: r.message }); setErrors((x) => { const n = { ...x }; delete n['payment.code']; return n; }); } else { setApplied(null); setErrors((x) => ({ ...x, 'payment.code': r.message })); } }}
+              onApply={() => { const r = applyDiscount(config, code, baseCents, { kind: 'plan', planId: plan?.id }, new Date().toISOString().slice(0, 10)); if (r.ok) { setApplied({ code: code.trim().toUpperCase(), cents: r.cents, message: r.message }); setErrors((x) => { const n = { ...x }; delete n['payment.code']; return n; }); } else { setApplied(null); setErrors((x) => ({ ...x, 'payment.code': r.message })); } }}
               codeError={err('payment.code')} total={finalCents} />
           )}
           <p className="hint">{config?.payments.refundPolicy || 'Dues are not refundable.'} Card payments are processed securely by Stripe; {org.shortName} never sees your card number.</p>

@@ -200,3 +200,7 @@
 .pay-options { display: grid; gap: .9rem; margin: 1rem 0; }
 .pay-options .check { display: flex; gap: .5rem; align-items: flex-start; }
 .pay-total { margin: 0; font-size: 1.05rem; }
+
+/* "Pay for family members" – one card per extra adult */
+.jf-member { border: 1px solid var(--border); border-radius: var(--radius); padding: .75rem 1rem; margin: 0 0 .75rem; }
+.jf-member .row-actions { display: flex; justify-content: space-between; align-items: center; margin-bottom: .5rem; }
