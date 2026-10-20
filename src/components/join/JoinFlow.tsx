@@ -646,7 +646,7 @@ export function JoinFlow({ settings, form, initialPlan, mockMode = svc.DEMO, con
       {d.step === 'pledge' && (
         <form className="jf-step" aria-labelledby="st-h" onSubmit={nextFromPledge} noValidate>
           <h2 id="st-h" tabIndex={-1} ref={headingRef}>Commitment and pledge</h2>
-          {d.plan.memberClass === 'natural' && (
+          {memberClass(settings.rules, d.plan.memberClass).canVote && (   /* only the class that votes chooses a commitment (the organization's rule) */
             <fieldset className="jf-fieldset">
               <legend>Your commitment to the community</legend>
               <p className="hint">Choose at least one to be eligible to vote.</p>
@@ -825,7 +825,8 @@ function LiveSummary({ settings, draft: d, pastPlan, planName, totalCents, unit,
     ['Email verified', d.account.verified ? true : null],
     [`${settings.minVotingAge} or older by June 30`, age === null ? null : age >= settings.minVotingAge],
     [`Lives in ${settings.serviceArea.label}`, inArea],
-    ['Member (not associate)', d.plan.memberClass === 'natural'],
+    // the organization's own rule: which class votes (ISGH: the paid associate members vote, natural members do not)
+    [`${memberClass(settings.rules, d.plan.memberClass).label} – a voting class`, memberClass(settings.rules, d.plan.memberClass).canVote],
     ['Commitment chosen', d.pledge.commitments.length > 0 ? true : null],
     ['Pledge signed', d.pledge.pledgeAccepted && d.pledge.signature.trim().length > 2 ? true : null],
     [`${settings.year} dues paid by June 30`, null],
