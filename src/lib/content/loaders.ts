@@ -11,6 +11,7 @@ import { HomeSchema, mockHome } from './home';
 import { GivingSchema, mockGiving } from './giving';
 import { MembershipSettingsSchema, mockMembershipSettings } from './membership';
 import { mockNews, mockPages, NewsItemSchema, PageSchema, type Page } from './pages';
+import { isLive } from './page-rules';
 import { defaultJoinForm, JoinFormSchema } from '@/lib/join/form-def';
 import { EventsSchema, mockEvents } from '@/lib/community/events';
 import { mockOrgConfig, OrgConfigSchema } from '@/lib/community/org-config';
@@ -33,13 +34,22 @@ export const getNews = cache(async (limit = 3) =>
   (await loadPublic(`/public/news?limit=${limit}`, z.array(NewsItemSchema), mockNews, ['news'], 'news')).slice(0, limit));
 
 const SLUG_RE = /^[a-z0-9-]+(\/[a-z0-9-]+)*$/;
-export const getPage = cache(async (slug: string): Promise<Page | null> => {
-  if (!SLUG_RE.test(slug)) return null;
-  const Pages = z.record(z.string(), PageSchema);
-  if (!apiConfig.useMock) return (await siteDoc('pages', Pages))[slug] ?? null;   // API mode: the organization's pages document
-  const stored = await readDemoStore('pages', Pages, mockPages); // admin demo publish (or the org's starter pages)
-  return (stored ?? mockPages)[slug] ?? null;
+const PagesDoc = z.record(z.string(), PageSchema);
+/** Every page of this organization (published or not) – admin-composed in Website › Pages. */
+export const getPagesDoc = cache(async (): Promise<Record<string, Page>> => {
+  if (!apiConfig.useMock) return siteDoc('pages', PagesDoc);          // API mode: the organization's pages document
+  return (await readDemoStore('pages', PagesDoc, mockPages)) ?? mockPages; // admin demo publish (or the org's starter pages)
 });
+/** One page by slug. Visitors only get live pages (O1 schedule/status rules); the admin preview may ask for any. */
+export const getPage = cache(async (slug: string, opts: { includeUnpublished?: boolean } = {}): Promise<Page | null> => {
+  if (!SLUG_RE.test(slug)) return null;
+  const page = (await getPagesDoc())[slug] ?? null;
+  if (!page) return null;
+  return opts.includeUnpublished || isLive(page) ? page : null;
+});
+/** Live pages that belong to one masjid (center id) – for masjid navigation (O3). */
+export const getMasjidPages = cache(async (center: string): Promise<Page[]> =>
+  Object.values(await getPagesDoc()).filter((p) => p.scope.kind === 'masjid' && p.scope.center === center && isLive(p)));
 export const listPageSlugs = async () => (!apiConfig.useMock ? [] : Object.keys((await readDemoStore('pages', z.record(z.string(), PageSchema), mockPages)) ?? mockPages));
 
 /** Admin › Events – the organization's events (public list, detail and registration) */
