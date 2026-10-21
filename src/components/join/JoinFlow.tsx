@@ -818,7 +818,7 @@ export function JoinFlow({ settings, form, initialPlan, mockMode = svc.DEMO, con
           <h2 id="st-h" tabIndex={-1} ref={headingRef}>{plan?.category === 'household' ? 'Your spouse' : 'Your family'}</h2>
           {plan?.category === 'household' && (
             <fieldset className="jf-fieldset">
-              <legend>Your spouse</legend>
+              <legend>Spouse details</legend>
               <p className="hint">We&apos;ll email your spouse an invitation to confirm their own details. Each of you has your own vote.</p>
               <div className="grid-2">
                 {(['firstName', 'lastName'] as const).map((k) => (

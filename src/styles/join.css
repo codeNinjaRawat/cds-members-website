@@ -306,3 +306,11 @@ fieldset.jf-group legend.jf-group-title { padding: 0; margin-bottom: .2rem; font
 .jf-group .jf-idnote { margin: 0; }
 .jf-scan { border-radius: 18px; }
 @media (max-width: 640px) { .jf-group { padding: .9rem .9rem 1rem; } }
+
+/* every grouped block on every step looks the same as the About you groups */
+.jf-fieldset { border-radius: 18px; background: color-mix(in srgb, var(--muted) 45%, var(--card)); padding: .9rem 1.1rem 1.2rem; }
+.jf-fieldset > legend { font: 700 .8rem var(--font-body); letter-spacing: .08em; text-transform: uppercase; color: var(--muted-foreground); padding: 0; margin-bottom: .2rem; }
+.jf-fieldset > legend.sr-only { position: absolute; }
+.review-block { border-radius: 16px; }
+/* after submitting, the one-line intro above the card steps aside */
+.join-page:has(.jf-shell.is-done) .join-top .join-lead { display: none; }
