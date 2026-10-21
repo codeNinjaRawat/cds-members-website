@@ -1,6 +1,8 @@
 /** Any CMS page (about, elections, faq, contact, masjid pages …) – composed by admins in Website › Pages (O1). */
 import type { Metadata } from 'next';
-import { notFound } from 'next/navigation';
+import { notFound, permanentRedirect, redirect } from 'next/navigation';
+import { getSiteConfig } from '@/lib/site-config/get-site-config';
+import { resolveRedirect } from '@/lib/site-config/redirects';
 import { getPage } from '@/lib/content/loaders';
 import { effectiveSeo } from '@/lib/content/page-rules';
 import { PageView } from '@/components/cms/PageView';
@@ -26,6 +28,10 @@ export default async function CmsPage({ params, searchParams }: Params) {
   const [{ slug }, sp] = await Promise.all([params, searchParams]);
   const preview = sp.preview === '1'; // admin preview (the admin app opens pages with ?preview=1 inside its preview frame)
   const page = await getPage(slug.join('/'), { includeUnpublished: preview });
-  if (!page) notFound();
+  if (!page) {
+    const r = resolveRedirect((await getSiteConfig()).redirects, slug.join('/')); // old addresses from flyers, QR codes, the previous website
+    if (r) (r.permanent ? permanentRedirect : redirect)(r.to);
+    notFound();
+  }
   return <PageView page={page} preview={preview} />;
 }

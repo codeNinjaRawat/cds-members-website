@@ -1,0 +1,19 @@
+/* ---------- O10 elections ---------- */
+.el { display: grid; gap: 1.2rem; }
+.el-status { display: inline-block; font-weight: 700; padding: .3rem .8rem; border-radius: 99px; background: var(--muted); }
+.el-status[data-status="voting"], .el-status[data-status="nominations"] { background: color-mix(in srgb, var(--primary) 16%, var(--card)); color: var(--primary); }
+.el-steps { list-style: none; margin: .8rem 0 0; padding: 0; display: grid; gap: .5rem; }
+@media (min-width: 640px) { .el-steps { grid-template-columns: repeat(3, 1fr); } }
+.el-steps li { display: grid; gap: .1rem; padding: .7rem .9rem; border-radius: var(--radius); background: var(--card); border: 1px solid var(--border); border-left: 4px solid var(--border); }
+.el-steps li[data-done] { border-left-color: var(--primary); }
+.el-steps span { color: var(--muted-foreground); font-size: .9rem; }
+.el h3 { font-size: 1.1rem; margin-bottom: .5rem; }
+.el-seats { list-style: none; margin: 0; padding: 0; display: grid; gap: .6rem; }
+@media (min-width: 760px) { .el-seats { grid-template-columns: repeat(2, 1fr); } }
+.el-seats > li { display: grid; gap: .25rem; padding: .8rem 1rem; background: var(--card); border: 1px solid var(--border); border-radius: var(--radius-lg); }
+.el-cands { margin: 0; padding-left: 1.2rem; }
+.el-places, .el-tba, .el-unc { font-size: .85rem; color: var(--muted-foreground); }
+.el-unc { color: var(--primary); font-weight: 600; }
+.el-results tr[data-winner] td { font-weight: 700; }
+.el-results th small { display: block; font-weight: 400; color: var(--muted-foreground); }
+.el-years a { margin-right: .6rem; }

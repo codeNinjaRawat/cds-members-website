@@ -5,6 +5,11 @@
 @import "../styles/home-classic.css";
 @import "../styles/pages.css";
 @import "../styles/blocks.css";
+@import "../styles/masjid.css";
+@import "../styles/activity.css";
+@import "../styles/search.css";
+@import "../styles/khutbah.css";
+@import "../styles/election.css";
 @import "../styles/join.css";
 @import "../styles/forms.css";
 @import "../styles/giving.css";

@@ -5,6 +5,7 @@
  * solid everywhere else. Menus follow the WAI-ARIA disclosure pattern.
  */
 import Link from 'next/link';
+import { MyMasjidLink } from './MyMasjid';
 import { usePathname } from 'next/navigation';
 import { useCallback, useEffect, useId, useRef, useState, type FocusEvent, type KeyboardEvent } from 'react';
 import type { Link as LinkT, NavItem } from '@/lib/site-config/schema';
@@ -137,6 +138,8 @@ export function SiteHeader({ productName, nav, actions, showThemeToggle, heroRou
             </nav>
 
             <div className="header-actions">
+              <MyMasjidLink />
+              <Link className="header-search" href="/search" aria-label="Search the site"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg></Link>
               {showThemeToggle && <ThemeToggle />}
               <Link className="btn btn-outline btn-sm signin" href={signIn.href}>{signIn.label}</Link>
               <Link className="btn btn-primary btn-sm join" href={actions.join.href}>{actions.join.label}</Link>

@@ -1,0 +1,21 @@
+/* ---------- O4 activity ---------- */
+.act-week { display: grid; gap: 1.2rem; }
+.act-week h3 { font-size: .85rem; text-transform: uppercase; letter-spacing: .06em; color: var(--muted-foreground); margin-bottom: .5rem; }
+.act-list { list-style: none; margin: 0; padding: 0; display: grid; gap: .5rem; }
+@media (min-width: 760px) { .cms-hub .act-list, .cms-landing .act-list { grid-template-columns: repeat(2, 1fr); } }
+.act-a { display: grid; gap: .15rem; padding: .8rem 1rem .8rem .95rem; border-radius: var(--radius-lg); background: var(--card); border: 1px solid var(--border); border-left: 4px solid var(--masjid-accent, var(--primary)); color: inherit; text-decoration: none; min-height: 64px; }
+.act-a:hover b, .act-a:focus-visible b { text-decoration: underline; }
+.act-kind { font-size: .72rem; text-transform: uppercase; letter-spacing: .08em; color: var(--muted-foreground); }
+.act-item[data-kind="event"] .act-a { border-left-color: var(--primary); }
+.act-item[data-kind="campaign"] .act-a { border-left-color: var(--highlight); }
+.act-item[data-kind="prayer"] .act-a, .act-item[data-kind="special"] .act-a { border-left-color: var(--hero-accent, var(--highlight)); }
+.act-item[data-kind="leadership"] .act-a { border-left-color: color-mix(in srgb, var(--primary) 50%, var(--foreground)); }
+.act-summary, .act-meta { color: var(--muted-foreground); font-size: .92rem; }
+.act-meta { font-variant-numeric: tabular-nums; }
+.act-more { font-size: .92rem; }
+.act-feed { display: grid; gap: 1rem; }
+.act-filters { display: flex; gap: .4rem; overflow-x: auto; scrollbar-width: none; padding-bottom: .2rem; }
+.act-filters::-webkit-scrollbar { display: none; }
+.act-filters a { display: inline-flex; align-items: center; min-height: 40px; padding: 0 .9rem; border-radius: 99px; border: 1px solid var(--border); white-space: nowrap; text-decoration: none; color: var(--foreground); font-size: .92rem; font-weight: 600; }
+.act-filters a[aria-current="page"] { background: var(--masjid-accent, var(--primary)); color: var(--masjid-accent-fg, var(--primary-foreground)); border-color: transparent; }
+.programs-filter { padding-top: 1.6rem; }

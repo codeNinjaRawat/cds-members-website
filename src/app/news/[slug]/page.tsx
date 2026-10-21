@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { getNews, getPage } from '@/lib/content/loaders';
 import { PageView } from '@/components/cms/PageView';
+import { Photo } from '@/components/ui/Photo';
 
 export const dynamic = 'force-dynamic';
 type Params = { params: Promise<{ slug: string }> };
@@ -29,7 +30,11 @@ export default async function NewsItemPage({ params }: Params) {
           <h1>{item.title}</h1>
           <p className="intro"><time dateTime={item.date}>{new Date(item.date + 'T12:00:00-05:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</time></p>
         </header>
-        <div className="cms-body"><p>{item.excerpt}</p></div>
+        <div className="cms-body">
+          <p>{item.excerpt}</p>
+          {item.image && <Photo image={item.image} sizes="(max-width: 800px) 100vw, 760px" className="cms-hero-img" showCredit />}
+          {item.attachments.length > 0 && <ul className="blk-docs">{item.attachments.map((a) => <li key={a.href}><a className="blk-doc" href={a.href} rel="noopener" target="_blank"><span className="blk-doc-kind" aria-hidden>{a.href.toLowerCase().endsWith('.pdf') ? 'PDF' : 'LINK'}</span><span className="blk-doc-title">{a.title}</span><span className="blk-doc-meta">Attachment</span></a></li>)}</ul>}
+        </div>
       </div>
     </article>
   );

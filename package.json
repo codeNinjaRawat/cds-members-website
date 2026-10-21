@@ -13,7 +13,8 @@
     "theme:build": "node scripts/build-theme.mjs",
     "test:e2e": "playwright test",
     "test:e2e:install": "playwright install chromium",
-    "images": "node scripts/fetch-images.mjs"
+    "images": "node scripts/fetch-images.mjs",
+    "test:unit": "node --experimental-strip-types --import ./tests/unit/register.mjs --test tests/unit/*.test.ts"
   },
   "dependencies": {
     "next": "^15.5.0",

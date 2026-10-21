@@ -12,6 +12,13 @@ import { GivingSchema, mockGiving } from './giving';
 import { MembershipSettingsSchema, mockMembershipSettings } from './membership';
 import { mockNews, mockPages, NewsItemSchema, PageSchema, type Page } from './pages';
 import { isLive } from './page-rules';
+import { deriveActivity, type Activity } from '@/lib/activity/activity';
+import { pageDoc, type SearchDoc } from '@/lib/search/search';
+import { publicEvents as publicEventsOf } from '@/lib/community/events';
+import { recordsFor } from '@/lib/community/records';
+import { ElectionsSchema, mockElections } from '@/lib/community/elections';
+import { currentElection, electionYears, publicElection, type PublicElection } from '@/lib/community/public-election';
+import { apiGet } from '@/lib/api/client';
 import { defaultJoinForm, JoinFormSchema } from '@/lib/join/form-def';
 import { EventsSchema, mockEvents } from '@/lib/community/events';
 import { mockOrgConfig, OrgConfigSchema } from '@/lib/community/org-config';
@@ -30,8 +37,11 @@ export const getMembershipSettings = cache(() =>
 export const getJoinForm = cache(() => loadPublic('/public/membership/join-form', JoinFormSchema, defaultJoinForm, ['join-form'], 'join-form'));
 /** CMS › Giving – verses, impact stories, needs */
 export const getGiving = cache(() => loadPublic('/public/giving', GivingSchema, mockGiving, ['giving'], 'giving'));
-export const getNews = cache(async (limit = 3) =>
-  (await loadPublic(`/public/news?limit=${limit}`, z.array(NewsItemSchema), mockNews, ['news'], 'news')).slice(0, limit));
+export const getNews = cache(async (limit = 3) => {
+  const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' });
+  const all = (await loadPublic(`/public/news?limit=${limit}`, z.array(NewsItemSchema), mockNews, ['news'], 'news')).filter((n) => !n.expiresAt || n.expiresAt >= today);
+  return all.sort((a, b) => Number(b.pinned) - Number(a.pinned) || b.date.localeCompare(a.date)).slice(0, limit); // O9: pinned first, expired items hidden
+});
 
 const SLUG_RE = /^[a-z0-9-]+(\/[a-z0-9-]+)*$/;
 const PagesDoc = z.record(z.string(), PageSchema);
@@ -73,3 +83,46 @@ export const getFundraising = cache(() => loadPublic('/public/campaigns', Fundra
 /** Admin › Settings › Sign-in – which sign-in methods show and what each dashboard is called (M4) */
 export const getSignIn = cache(() => loadPublic('/public/sign-in', SignInSchema, mockSignIn, ['sign-in'], 'sign-in'));
 export const getOrgConfig = cache(() => loadPublic('/public/config', OrgConfigSchema, mockOrgConfig, ['org-config'], 'org-config'));
+
+/** O4 – derived activity for the whole organization (filter per masjid with forMasjid). Public data only. */
+export const getActivity = cache(async (): Promise<Activity[]> => {
+  const [map, events, news, fundraising, officials, prayer, records, pages] = await Promise.all([
+    getOrgStructure(), getEvents(), getNews(100), getFundraising(), getOfficials(), getPrayerTimes(), getRecords(), getPagesDoc(),
+  ]);
+  const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' });
+  return deriveActivity({ map, events, news, fundraising, officials, prayer, records, pages: Object.values(pages) }, today);
+});
+
+/** O2 – everything the site search may show (public content only). */
+export const getSearchDocs = cache(async (): Promise<SearchDoc[]> => {
+  const [pages, map, events, news, fundraising, records] = await Promise.all([getPagesDoc(), getOrgStructure(), getEvents(), getNews(200), getFundraising(), getRecords()]);
+  const docs: SearchDoc[] = [];
+  for (const p of Object.values(pages)) { const d = pageDoc(p); if (d) docs.push(d); }
+  for (const c of map.centers.filter((c) => c.active)) docs.push({ kind: 'masjid', title: c.name, href: `/masjid/${c.id}`, text: `${c.aka} ${c.address.street} ${c.address.city} ${c.address.zip} ${c.profile.story} ${c.services.join(' ')}`, masjid: c.id });
+  for (const z of map.zones.filter((z) => z.active)) docs.push({ kind: 'zone', title: z.name, href: `/zones/${z.id}`, text: `${z.areas} ${z.director.name}` });
+  for (const n of news) docs.push({ kind: 'news', title: n.title, href: `/news/${n.slug}`, text: n.excerpt, date: n.date, masjid: n.masjid });
+  if (events.enabled) for (const e of publicEventsOf(events).events) if (e.visibility === 'public') docs.push({ kind: 'event', title: e.title, href: `/events/${e.id}`, text: `${e.summary} ${e.location.name} ${e.location.address}`, date: e.start, masjid: e.location.center });
+  if (fundraising.website.enabled) for (const c of fundraising.campaigns) if (c.status !== 'draft') docs.push({ kind: 'campaign', title: c.name, href: `/campaigns?c=${c.id}`, text: c.story, date: c.start, masjid: c.center });
+  if (records.website.enabled) for (const r of recordsFor(records, 'public')) if (!r.archived) docs.push({ kind: 'record', title: r.title, href: '/records', text: r.summary, date: r.date, masjid: r.center });
+  return docs;
+});
+
+/** O10 – the public view of one election (demo: from the elections document; live: GET /public/elections/:year). year 0/undefined = the featured one. */
+export const getPublicElection = cache(async (year?: number): Promise<PublicElection | null> => {
+  if (apiConfig.useMock) {
+    const d = (await readDemoStore('elections', ElectionsSchema, mockElections)) ?? mockElections;
+    const e = year ? d.elections.find((x) => x.year === year) ?? null : currentElection(d);
+    return e ? publicElection(e) : null;
+  }
+  const y = year || new Date().getFullYear();
+  for (const yy of year ? [y] : [y, y - 1]) {
+    try { const r = await apiGet<Omit<PublicElection, 'statusKey'> & { status: string }>(`/public/elections/${yy}`, ['doc:elections']); return { ...r, statusKey: (Object.entries({ planning: 'Planning', nominations: 'Nominations open', ballot: 'Ballot set', voting: 'Voting', counting: 'Counting', certified: 'Certified', closed: 'Closed' }).find(([, v]) => v === r.status)?.[0] ?? 'planning') as PublicElection['statusKey'] }; } catch { /* no election that year */ }
+  }
+  return null;
+});
+export const getElectionYears = cache(async (): Promise<number[]> => {
+  if (apiConfig.useMock) return electionYears((await readDemoStore('elections', ElectionsSchema, mockElections)) ?? mockElections);
+  const y = new Date().getFullYear(); const out: number[] = [];
+  for (const yy of [y, y - 1, y - 2]) { try { await apiGet(`/public/elections/${yy}`, ['doc:elections']); out.push(yy); } catch { /* none */ } }
+  return out;
+});

@@ -76,3 +76,11 @@ Planned: `POST /public/giving/donations {needId, amountCents, fund zakat|sadaqah
 
 ## Planned – member (W5, 2026-10-13)
 `GET /member/me` (session) → `{ profile{firstName,lastName,email,phone,address[]}, memberId, plan, memberSince, status, validThrough|null, zone, center, household[{name,relation,status}], eligibility{year, checks[{key,label,state ok|todo|wait|no,note}]}, payments[{date,label,amountCents,receipt}], idVerified }` – demo shape in `src/lib/demo/demo-member.ts`. Settings needed: renewal opens date, record date.
+
+## Added 2026-10-21 (O1 – pages v2)
+- `pages/{slug}` document fields added (all optional, defaults keep v1 pages valid): `scope {kind:'org'} | {kind:'masjid', center}`, `template article|landing|hub`,
+  `seo {title, description, image, noIndex}`, `visibility public|members`, `status draft|review|scheduled|published|archived`, `publishAt`, `unpublishAt` (YYYY-MM-DD or YYYY-MM-DDTHH:MM, Houston),
+  `owner`, `reviewedAt`. Masjid pages are keyed `masjid/<center-slug>/<page>`.
+- Block types: v1 eight + image, gallery, columns, cards, steps, people, buttons, documents, table, embed, verse, divider (static) and prayer-times, next-jumuah, events,
+  campaigns, leadership, masjid-cards, deadline, news, plans, form (live – the website resolves them from the other public documents; the BE stores them as-is).
+- The website only serves pages where `isLive()` (page-rules.ts) is true; `GET /site/documents/pages` keeps returning the whole document (admin preview needs drafts).

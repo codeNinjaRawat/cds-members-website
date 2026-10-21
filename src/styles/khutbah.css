@@ -1,0 +1,25 @@
+/* ---------- O6 khutbah + print ---------- */
+.kh { display: grid; gap: .8rem; }
+.kh-note, .kh-when { color: var(--muted-foreground); font-size: .95rem; }
+.kh-list { list-style: none; margin: 0; padding: 0; display: grid; gap: .5rem; }
+.kh-row { display: grid; grid-template-columns: 56px 1fr; gap: .9rem; align-items: center; padding: .7rem .9rem; background: var(--card); border: 1px solid var(--border); border-radius: var(--radius-lg); }
+.kh-row[data-today="true"] { border-color: var(--masjid-accent, var(--primary)); box-shadow: 0 0 0 1px var(--masjid-accent, var(--primary)) inset; }
+.kh-date { display: grid; place-items: center; width: 56px; height: 56px; border-radius: var(--radius); background: var(--muted); line-height: 1; }
+.kh-date b { font-size: 1.4rem; font-family: var(--font-display); color: var(--primary); }
+.kh-date span { font-size: .75rem; text-transform: uppercase; letter-spacing: .05em; color: var(--muted-foreground); }
+.kh-body { display: grid; gap: .1rem; min-width: 0; }
+.kh-body > span { color: var(--muted-foreground); font-size: .92rem; }
+.kh-meta { font-size: .85rem !important; }
+.kh-more { font-size: .92rem; }
+.kh-zone h3 { font-size: .85rem; text-transform: uppercase; letter-spacing: .06em; color: var(--muted-foreground); margin: .4rem 0; }
+.kh-table small { display: block; color: var(--muted-foreground); }
+.masjid-tools { display: flex; gap: .5rem; flex-wrap: wrap; padding: .8rem 0 0; }
+@media print {
+  .site-header, .site-footer, .announcement-bar, .masjid-nav, .masjid-tools, .blk-buttons, .cta-box, .skip-link, .my-masjid, .print-btn { display: none !important; }
+  .masjid-band { background: #fff !important; color: #000 !important; min-height: 0; }
+  .masjid-band-photo { display: none; }
+  .blk-table-wrap { overflow: visible; border: 0; }
+  .blk-table { font-size: 11px; min-width: 0; }
+  .blk-prayer { border: 0; padding: 0; }
+  body { background: #fff; color: #000; }
+}

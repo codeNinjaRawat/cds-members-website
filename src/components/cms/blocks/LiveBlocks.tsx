@@ -17,6 +17,9 @@ import { IQAMAH_PRAYERS, PRAYERS, PRAYER_NAME, clock, dayTimes, monthDays, nextP
 import { FeedbackForm } from '@/components/forms/FeedbackForm';
 import { ComplaintForm } from '@/components/forms/ComplaintForm';
 import { VerifyForm } from '@/components/forms/VerifyForm';
+import { ActivityBlockView } from './ActivityBlock';
+import { KhutbahBlockView } from './KhutbahBlock';
+import { ElectionBlockView } from './ElectionBlock';
 
 const todayCT = () => new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' });
 const nowMinCT = () => { const p = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Chicago', hourCycle: 'h23', hour: '2-digit', minute: '2-digit' }).formatToParts(new Date()); return Number(p.find((x) => x.type === 'hour')?.value) * 60 + Number(p.find((x) => x.type === 'minute')?.value); };
@@ -161,7 +164,7 @@ async function MasjidCardsBlock({ b }: { b: Extract<LiveBlock, { type: 'masjid-c
   if (!centers.length) return null;
   return (
     <ul className="blk-cards blk-masjids" data-n="3">{centers.map((c) => (
-      <li key={c.id} className="blk-card"><Link href={`/masjid/${slugify(c.name)}`} className="blk-card-a">
+      <li key={c.id} className="blk-card"><Link href={`/masjid/${c.id}`} className="blk-card-a">
         <div className="blk-card-body">
           <span className="blk-masjid-zone">{map.zones.find((z) => z.id === c.zone)?.name}</span>
           <h3>{c.name}</h3>{c.aka && <p className="blk-masjid-aka">{c.aka}</p>}
@@ -238,6 +241,9 @@ export async function LiveBlockView({ b, page }: { b: LiveBlock; page: Page }) {
     case 'news': return <NewsBlock b={b} />;
     case 'plans': return <PlansBlock />;
     case 'form': return <FormBlock b={b} />;
+    case 'activity': return <ActivityBlockView b={b} page={page} />;
+    case 'khutbah': return <KhutbahBlockView b={b} page={page} />;
+    case 'election': return <ElectionBlockView b={b} />;
     default: return null;
   }
 }

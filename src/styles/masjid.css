@@ -1,0 +1,59 @@
+/* ---------- O3 masjid micro-sites ---------- */
+.masjid { --masjid-accent: var(--primary); --masjid-accent-fg: var(--primary-foreground); }
+.masjid[data-accent="teal"] { --masjid-accent: #0E7C7B; --masjid-accent-fg: #fff; }
+.masjid[data-accent="blue"] { --masjid-accent: #1F5FA8; --masjid-accent-fg: #fff; }
+.masjid[data-accent="indigo"] { --masjid-accent: #4A3F9C; --masjid-accent-fg: #fff; }
+.masjid[data-accent="amber"] { --masjid-accent: #B8720A; --masjid-accent-fg: #fff; }
+.masjid[data-accent="rose"] { --masjid-accent: #A63D5C; --masjid-accent-fg: #fff; }
+[data-mode="dark"] .masjid[data-accent="teal"] { --masjid-accent: #3FB5B3; --masjid-accent-fg: #06201F; }
+[data-mode="dark"] .masjid[data-accent="blue"] { --masjid-accent: #6FA8E8; --masjid-accent-fg: #061A33; }
+[data-mode="dark"] .masjid[data-accent="indigo"] { --masjid-accent: #9A8FE8; --masjid-accent-fg: #130F33; }
+[data-mode="dark"] .masjid[data-accent="amber"] { --masjid-accent: #F1BA4A; --masjid-accent-fg: #2A1A02; }
+[data-mode="dark"] .masjid[data-accent="rose"] { --masjid-accent: #E88AA6; --masjid-accent-fg: #330A17; }
+
+.masjid-band { position: relative; background: var(--hero); color: var(--hero-foreground); overflow: hidden; }
+.masjid-band-photo { position: absolute; inset: 0; margin: 0; }
+.masjid-band-photo::after { content: ""; position: absolute; inset: 0; background: linear-gradient(to top, color-mix(in srgb, var(--hero) 94%, transparent) 20%, color-mix(in srgb, var(--hero) 30%, transparent)); }
+.masjid-band-in { position: relative; padding: 2.4rem 0 1.4rem; display: grid; gap: .3rem; min-height: 200px; align-content: end; }
+.masjid-band:has(.masjid-band-photo) .masjid-band-in { min-height: 46vw; max-height: 360px; }
+.masjid-crumbs { font-size: .85rem; color: var(--hero-muted); }
+.masjid-crumbs a { color: inherit; }
+.masjid-name { font-size: clamp(1.9rem, 6vw, 3.2rem); font-variation-settings: "wdth" 84; letter-spacing: -0.02em; line-height: 1.05; }
+.masjid-aka { color: var(--hero-muted); }
+.masjid-meta { display: flex; flex-wrap: wrap; gap: .3rem 1.2rem; font-size: .95rem; }
+.masjid-meta a { color: var(--hero-foreground); text-decoration-color: var(--hero-muted); }
+.masjid-nav { position: sticky; top: 0; z-index: 5; background: var(--background); border-bottom: 1px solid var(--border); }
+.masjid-nav ul { list-style: none; margin: 0; padding: .5rem 0; display: flex; gap: .4rem; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+.masjid-nav ul::-webkit-scrollbar { display: none; }
+.masjid-nav a { display: inline-flex; align-items: center; min-height: 44px; padding: 0 1rem; border-radius: 99px; border: 1px solid var(--border); white-space: nowrap; text-decoration: none; color: var(--foreground); font-weight: 600; font-size: .95rem; }
+.masjid-nav a[aria-current="page"] { background: var(--masjid-accent); color: var(--masjid-accent-fg); border-color: var(--masjid-accent); }
+.masjid-nav-screen { margin-left: auto; color: var(--muted-foreground) !important; border-style: dashed !important; }
+.masjid .cms-page { padding-top: 2rem; }
+.masjid .cms-head h1 { font-size: clamp(1.7rem, 4vw, 2.6rem); }
+.masjid .blk-bar > span, .masjid .blk-step-n, .masjid .blk-prayer-list li[data-next="true"] { background-color: color-mix(in srgb, var(--masjid-accent) 20%, var(--card)); }
+.masjid .blk-bar > span, .masjid .blk-step-n { background-color: var(--masjid-accent); color: var(--masjid-accent-fg); }
+.masjid .btn-primary { background: var(--masjid-accent); color: var(--masjid-accent-fg); }
+
+/* lobby screen */
+body:has(.screen) .site-header, body:has(.screen) .site-footer, body:has(.screen) .announcement-bar, body:has(.screen) .skip-link { display: none !important; }
+.screen { min-height: 100vh; background: #0B1410; color: #F4F7F4; display: grid; grid-template-columns: 1fr; grid-template-rows: auto auto 1fr auto; gap: 1.2rem; padding: 1.4rem; font-size: clamp(1rem, 2.2vw, 1.6rem); }
+.screen-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 1rem; flex-wrap: wrap; }
+.screen-head h1 { font-size: clamp(1.8rem, 4.5vw, 3.6rem); font-variation-settings: "wdth" 84; line-height: 1; }
+.screen-head p { color: #A9B8AF; }
+.screen-next { display: grid; justify-items: end; line-height: 1.1; }
+.screen-next span { font-size: .7em; color: #A9B8AF; text-transform: uppercase; letter-spacing: .1em; }
+.screen-next strong { font-size: 2em; color: #F1BA4A; font-family: var(--font-display); }
+.screen-times { display: grid; gap: .35em; }
+.screen-row { display: grid; grid-template-columns: 1.4fr 1fr 1fr; align-items: center; padding: .55em 1em; border-radius: .6em; background: rgba(255,255,255,.05); font-variant-numeric: tabular-nums; }
+.screen-row > span:not(:first-child) { text-align: right; font-family: var(--font-display); font-size: 1.25em; }
+.screen-row-head { background: transparent; color: #A9B8AF; font-size: .75em; text-transform: uppercase; letter-spacing: .1em; padding-top: 0; padding-bottom: 0; }
+.screen-row-head > span { font-family: inherit; font-size: inherit; }
+.screen-row[data-next] { background: #F1BA4A; color: #1F1606; }
+.screen-jumuah { background: rgba(241, 186, 74, .18); }
+.screen-side { display: grid; gap: 1.2rem; align-content: start; }
+.screen-side h2 { font-size: .8em; text-transform: uppercase; letter-spacing: .1em; color: #A9B8AF; margin-bottom: .4em; }
+.screen-side ul { list-style: none; margin: 0; padding: 0; display: grid; gap: .5em; }
+.screen-side li { display: grid; gap: .1em; padding: .6em .9em; border-radius: .6em; background: rgba(255,255,255,.05); }
+.screen-side li span { color: #A9B8AF; font-size: .8em; }
+.screen-foot { color: #A9B8AF; font-size: .8em; }
+@media (min-width: 900px) { .screen { grid-template-columns: 1.1fr 1fr; grid-template-rows: auto 1fr auto; } .screen-head, .screen-foot { grid-column: 1 / -1; } }

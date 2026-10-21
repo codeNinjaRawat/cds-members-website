@@ -45,3 +45,65 @@
   (`monthlyOffer`); /give passes it from the membership settings.
 - Contracts (lib/community + lib/content, synced to the admin): membership classes + plan ages, queue routing + follow-ups,
   role dashboard cards, per-center money, center-change rules, two help-desk categories.
+
+## 2026-10-21 – O1 Content model v2 + block library + live blocks (R6.1, website v2 "One site, many doors")
+- `lib/content/pages.ts`: Page v2 – `scope` (org | masjid:<center id>), `template` (article | landing | hub), `seo`, `visibility` (public | members),
+  `status` draft | review | scheduled | published | archived, `publishAt` / `unpublishAt` (Houston time), `owner`, `reviewedAt`. Every v1 page stays valid.
+- Blocks v2: 20 static blocks (v1 eight + image, gallery, columns, cards, steps, people, buttons, documents, table, embed [allow-listed hosts only], verse, divider)
+  and 10 LIVE blocks that render admin data on the server: prayer-times (today/week/month per masjid), next-jumuah, events, campaigns, leadership (board/zone/masjid),
+  masjid-cards, deadline (voting record date), news, plans, form (feedback/complaint/verify). Live blocks default to the page's masjid.
+- `lib/content/page-rules.ts` (shared with admin): isLive/liveReason (schedule window), effectiveSeo, blockMasjid, blockWidth, masjidPageSlug, embedAllowed.
+- Renderer: `components/cms/PageView.tsx` + `blocks/StaticBlocks.tsx`, `blocks/LiveBlocks.tsx`, `blocks/inline.tsx` (**bold** and [links] only – no HTML from the CMS),
+  `MembersGate.tsx` (members-only pages). `[...slug]` route: visitors see live pages only; `?preview=1` (admin preview frame) shows drafts with the reason badge;
+  metadata/Open Graph from `seo`. Styles: `styles/blocks.css` (phone-first grids, sticky-column tables, 48 px buttons).
+- Loaders: `getPagesDoc`, `getPage(slug, { includeUnpublished })`, `getMasjidPages(center)`.
+- Starter page `style-guide` (draft) shows every block – QA page and copy source for admins. Admin: previewPaths now `?preview=1`; contracts synced (+ page-rules.ts).
+- Tests: `tests/unit/page-rules.test.ts` 7/7 (node --experimental-strip-types --test); `tests/e2e/cms-blocks.spec.ts` (needs the site in demo mode – owner to run);
+  tsc clean in web and admin. Research note: `memory/research/O1-content-model-and-blocks.md`.
+
+## 2026-10-21 – O3 Masjid micro-sites (R6.3) + network directory
+- `/masjid/<id>` and `/masjid/<id>/{prayer-times, jumuah, events, programs, announcements, leadership, give, gallery, visit, screen}` – built-in pages composed
+  from live blocks + the masjid profile (`lib/masjid/masjid-site.ts`); an admin page at the same address replaces the built-in one; other admin pages under
+  `masjid/<id>/` join the chip menu. Slugified names redirect to the id; inactive masjid → friendly page (404). `screen` = lobby signage view (no site chrome, auto-refresh 5 min).
+- `CenterSchema.profile` (photo, gallery, story, accent, established, capacity, facilities, languages, hours, email, social, parking, staff) – edited in Admin › Zones and centers
+  › center dialog › "Masjid page". `NewsItem.masjid` / `showOnMasjids` for per-masjid announcements. Masjid-cards live block links to `/masjid/<id>`.
+- `/masajid` (directory by zone, facts, cards) and `/zones/<id>` (director, masajid, zone leaders) as built-in pages; nav "All masajid" → /masajid.
+- Shell: `components/masjid/MasjidShell.tsx` (band with photo, crumbs, address/phone, sticky chip menu, accent via `--masjid-accent`), `styles/masjid.css`.
+- Tests: `tests/unit/masjid-site.test.ts` 3/3 (node + `tests/unit/register.mjs` alias loader), `tests/e2e/masjid.spec.ts` (needs demo mode). tsc clean web + admin.
+  Research note: `memory/research/O3-masjid-sites.md`.
+
+## 2026-10-21 – O4 Activity engine (R6.4)
+- `lib/activity/activity.ts`: activity DERIVED from public data (events, news, campaigns, officials, iqamah rule dates, special prayers, public records, masjid pages) –
+  nothing stored twice; `forMasjid`, `byKind`, `thisWeek`, `toRss`. Loader `getActivity()`.
+- `activity` live block (view week | feed, kinds, limit) rendered by `components/cms/blocks/ActivityBlock.tsx`; masjid overview shows "This week"; routes
+  `/masjid/<id>/activity` (built-in, `?kind=`), `/activity`; RSS `/masjid/<id>/feed`, `/activity/feed`. Styles `styles/activity.css`.
+- Tests: `tests/unit/activity.test.ts` 5/5 (all unit suites: `node --experimental-strip-types --import ./tests/unit/register.mjs --test tests/unit/*.test.ts`). tsc clean web + admin.
+
+## 2026-10-21 – O2 Site shell v2 (R6.2)
+- `/search` (lib/search/search.ts – pages' static text, masajid, zones, news, public events, campaigns, public records; grouped results) + header search icon.
+- "My masjid" chip (components/layout/MyMasjid.tsx; localStorage, set when a masjid page is opened); masjid pages add `Mosque` JSON-LD.
+- `/sitemap.xml`, `/robots.txt` (ISGH_NOINDEX aware), share images: `app/opengraph-image.tsx` (organization) and `app/masjid/[slug]/opengraph-image.tsx`.
+- Nav starter: "What’s happening" → /activity. Tests: tests/unit/search.test.ts 2/2. tsc clean.
+
+## 2026-10-21 – O6 Prayer & khutbah network-wide (R6.6)
+- `prayer-times` document gains `khutbah` (enabled, rows [date, center, khateeb, topic, language, time, note], feedbackUrl, note) – old documents parse with defaults.
+  Helpers `nextFriday`, `khutbahFor`, `parseKhutbahSheet` (paste from Google Sheets/Excel, TSV or CSV, any column order, US dates, center-name matching).
+- Admin › Prayer times › **Friday khutbah** tab (`admin/.../KhutbahTab.tsx`): per-Friday table editor, add masjid, copy last Friday's rows, paste-from-sheet with merge/replace.
+- Website: `khutbah` live block (one masjid's coming Fridays / every masjid next Friday by zone), `/khutbah` page, masjid Jumuah page shows "Coming Fridays",
+  `/prayer-times/ical?masjid=<id>` calendar subscription (30 days of iqamah + Jumuah), Print button on masjid prayer/jumuah pages + print stylesheet (`styles/khutbah.css`).
+- Tests: tests/unit/khutbah.test.ts 4/4. tsc clean web, admin, BE (BE reads the admin copy of the schemas).
+
+## 2026-10-21 – O7 / O9 / O10 / O11 (R6.7, R6.9, R6.10, R6.11) + O1.5 delegated editing (R6.1c)
+- O7: `/programs` (classes, youth, sisters, community – events by category, `?masjid=` filter chips); starter pages `services` hub + six service pages
+  (financial assistance, Islamic education, job networking, nikah, dawah, funerals) written from the isgh.org trace, text-first.
+- O9: `/documents` (public records by category from the Records library). News items carry `masjid` / `showOnMasjids` (O3).
+- O10: `lib/community/public-election.ts` (public projection = BE GET /public/elections/:year shape), `election` live block (status, dates, seats/candidates,
+  certified results), `/elections/<year>`; the starter `elections` page starts with the live block. Loaders `getPublicElection`, `getElectionYears`.
+- O11: `site-config.redirects` (exact or `prefix*`; `lib/site-config/redirects.ts`) applied by `[...slug]` for unknown addresses – 25 starter rules for old isgh.org
+  addresses; Admin › Website › Redirects and short links (try-an-address probe); Website health panel in Pages (stale, no owner, drafts, scheduled, missing alt, no description, empty);
+  Import pages… (paste a pages JSON – drafts only); `tools/import-isgh-pages.mjs` → `isgh-org/import/pages-import.json` (60 current isgh.org pages as drafts with owners), `redirects-import.json`, CSV.
+- O1.5: permission `center.content` now also covers the masjid's website pages; new built-in role **Masjid web editor** (center-scoped). Admin › Pages for such editors:
+  only their masajid's pages, statuses draft/review, "Submit for review"; admin store API and BE `PUT /admin/documents/pages` refuse changes outside scope or publishing
+  (`pagesChangeProblem` in lib/community/access.ts). Tests: tests/unit/pages-scope.test.ts 2/2 (all unit: 24/24). tsc clean web, admin, BE.
+- O5.1 `/masajid?zip=77036` – find my masjid by ZIP (homeForZip rule) shown as a callout with a link; O9 news items: `image`, `attachments`, `pinned`, `expiresAt`
+  (pinned first, expired hidden; the item page shows the image and attachments as documents).
