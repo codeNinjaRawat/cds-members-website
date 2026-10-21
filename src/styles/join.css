@@ -244,3 +244,34 @@
   .jf-summary { order: 1; }
   .jf-summary h3, .jf-summary .sum-checks, .jf-summary .sum-help { display: none; }
 }
+
+/* ---------- Join v3 (2026-10-21, owner): the form shaped like the app – one card, pill steps, big fields, one clear button ---------- */
+.jf-card { border-radius: 22px; padding: clamp(1.1rem, 3vw, 1.8rem); box-shadow: 0 24px 60px -40px #0005; }
+.stepper-wrap { gap: .5rem; margin-bottom: 1.1rem; }
+.stepper-head { display: flex; justify-content: space-between; align-items: baseline; gap: 1rem; }
+.stepper-text { font-size: .95rem; }
+.stepper-pct { font: 700 .85rem var(--font-display); color: var(--primary); }
+.stepper-bar { height: 6px; }
+.stepper { display: flex; gap: .4rem; margin: .35rem 0 0; overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; padding-bottom: 2px; }
+.stepper::-webkit-scrollbar { display: none; }
+.stepper li { flex: none; display: inline-flex; align-items: center; gap: .4rem; padding: .35rem .75rem .35rem .4rem; border-radius: 999px; border: 1.5px solid var(--border); background: var(--card); font-size: .8rem; color: var(--muted-foreground); }
+.stepper li::after { display: none; }
+.stepper li.done { border-color: color-mix(in srgb, var(--primary) 45%, transparent); background: color-mix(in srgb, var(--primary) 8%, var(--card)); color: var(--foreground); }
+.stepper li.current { border-color: var(--primary); background: var(--primary); color: var(--primary-foreground); font-weight: 700; }
+.stepper .dot { width: 20px; height: 20px; font-size: .7rem; border-width: 1.5px; }
+.stepper li.current .dot { background: var(--primary-foreground); border-color: var(--primary-foreground); color: var(--primary); }
+.stepper .lbl, .stepper li.current .lbl { display: inline; position: static; white-space: nowrap; }
+@media (max-width: 760px) { .stepper { display: flex; margin-bottom: 0; } }
+.jf-step .input, .jf-field .input { min-height: 52px; border-radius: 14px; border-width: 1.5px; font-size: 1rem; padding-inline: .95rem; }
+.jf-step .input:focus-visible, .jf-field .input:focus-visible { border-color: var(--primary); box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 18%, transparent); outline: none; }
+.jf-field label { font-size: .9rem; }
+.jf-step h2 { font-size: clamp(1.45rem, 3vw, 1.9rem); }
+.choice, .plan-choice { border-radius: 16px; }
+.step-nav .btn, .jf-step form .btn-primary { min-height: 52px; border-radius: 14px; padding-inline: 1.4rem; font-weight: 700; }
+.step-nav .btn-primary { flex: 1; max-width: 320px; }
+@media (max-width: 640px) {
+  .step-nav { position: sticky; bottom: 0; background: var(--card); padding: .9rem 0 calc(.6rem + env(safe-area-inset-bottom)); margin: .6rem -1.1rem 0; padding-inline: 1.1rem; border-top: 1px solid var(--border); z-index: 2; }
+  .step-nav .btn-primary { max-width: none; }
+  .step-nav .jf-save { order: 3; width: 100%; text-align: center; }
+  .jf-summary { border-radius: 16px; padding: .75rem .9rem; }
+}

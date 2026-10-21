@@ -507,7 +507,11 @@ export function JoinFlow({ settings, form, initialPlan, mockMode = svc.DEMO, con
       <SmartLoader plan={LOADER_PLANS.submit} active={task === 'submit'} variant="overlay" expectedMs={2200} />
       {d.step !== 'done' && (
         <div className="stepper-wrap">
-          <p className="stepper-text"><b>Step {stepIndex + 1} of {STEPS.length}</b> · {STEPS[stepIndex]?.label}{STEPS[stepIndex + 1] ? <span className="muted"> · next: {STEPS[stepIndex + 1].label}</span> : null}</p>
+          {/* app-style header: where you are, how far, the steps as pills (done ✓ · current · next) */}
+          <div className="stepper-head">
+            <p className="stepper-text"><b>Step {stepIndex + 1} of {STEPS.length}</b><span className="muted"> · {STEPS[stepIndex]?.label}{STEPS[stepIndex + 1] ? ` · next: ${STEPS[stepIndex + 1].label}` : ''}</span></p>
+            <span className="stepper-pct" aria-hidden="true">{Math.round(((stepIndex + 1) / STEPS.length) * 100)}%</span>
+          </div>
           <div className="stepper-bar" aria-hidden="true"><i style={{ width: `${Math.round(((stepIndex + 1) / STEPS.length) * 100)}%` }} /></div>
           <ol className="stepper" aria-label="Sign-up steps">
             {STEPS.map((s, i) => (
@@ -549,7 +553,7 @@ export function JoinFlow({ settings, form, initialPlan, mockMode = svc.DEMO, con
       {d.step === 'account' && !already && (
         <section className="jf-step" aria-labelledby="st-h">
           <h2 id="st-h" tabIndex={-1} ref={headingRef}>Create your account</h2>
-          <p className="jf-lead">Use Google, or get a {settings.otp.length}-digit code by email. No password to remember.</p>
+          <p className="jf-lead">{liveForm.helpers.google ? `Use Google, or get a ${settings.otp.length}-digit code by email.` : `We send a ${settings.otp.length}-digit code to your email – it becomes your sign-in.`} No password to remember.</p>
           {!otp.sent ? (
             <div className="auth-box">
               {liveForm.helpers.google && <><GoogleButton onProfile={onGoogle} disabled={busy} />
@@ -571,7 +575,7 @@ export function JoinFlow({ settings, form, initialPlan, mockMode = svc.DEMO, con
               <ul className="trust">
                 <li>Your details are used only for your {org.shortName} membership.</li>
                 <li>Payments are handled by Stripe. We never see your card.</li>
-                <li>{mockMode ? 'You can save and finish later in this browser.' : 'Every answer is saved as you go – stop any time and finish later on any device.'}</li>
+                {liveForm.helpers.saveForLater || !mockMode ? <li>{mockMode ? 'You can save and finish later in this browser.' : 'Every answer is saved as you go – stop any time and finish later on any device.'}</li> : null}
               </ul>
               <p className="fine">By continuing you agree to the <Link href="/terms">Terms of use</Link> and <Link href="/privacy">Privacy policy</Link>.</p>
             </div>
