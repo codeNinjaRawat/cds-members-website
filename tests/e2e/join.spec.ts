@@ -37,7 +37,7 @@ test.describe('join flow', () => {
     await page.fill('#f-account-code', '000000');
     await page.click('text=Verify and continue');
     await expect(page.locator('.error-summary')).toContainText('not right');
-    await expect(page.getByRole('button', { name: /Resend code in/ })).toBeDisabled();
+    await expect(page.locator('.jf-otp-resend')).toContainText('Resend in');
     await page.fill('#f-account-code', '123456');
     await page.click('text=Verify and continue');
     await expect(page.locator('h2#st-h')).toHaveText('About you');

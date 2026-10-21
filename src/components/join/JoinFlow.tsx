@@ -552,8 +552,8 @@ export function JoinFlow({ settings, form, initialPlan, mockMode = svc.DEMO, con
       {/* ---------- 1. Account ---------- */}
       {d.step === 'account' && !already && (
         <section className="jf-step" aria-labelledby="st-h">
-          <h2 id="st-h" tabIndex={-1} ref={headingRef}>Create your account</h2>
-          <p className="jf-lead">{liveForm.helpers.google ? `Use Google, or get a ${settings.otp.length}-digit code by email.` : `We send a ${settings.otp.length}-digit code to your email – it becomes your sign-in.`} No password to remember.</p>
+          <h2 id="st-h" tabIndex={-1} ref={headingRef}>{otp.sent && !otp.existing ? 'Check your email' : 'Create your account'}</h2>
+          {otp.sent && !otp.existing ? null : <p className="jf-lead">{liveForm.helpers.google ? `Use Google, or get a ${settings.otp.length}-digit code by email.` : `We send a ${settings.otp.length}-digit code to your email – it becomes your sign-in.`} No password to remember.</p>}
           {!otp.sent ? (
             <div className="auth-box">
               {liveForm.helpers.google && <><GoogleButton onProfile={onGoogle} disabled={busy} />
@@ -590,21 +590,24 @@ export function JoinFlow({ settings, form, initialPlan, mockMode = svc.DEMO, con
               </div>
             </div>
           ) : (
-            <form onSubmit={verifyCode} noValidate>
-              {notice && <p className="jf-ok" role="status">{notice}</p>}
+            <form onSubmit={verifyCode} noValidate className="jf-otp">
+              {/* app-style code screen: where it went, one big code box, one button, resend as text */}
+              <div className="jf-otp-head">
+                <span className="jf-otp-icon" aria-hidden="true"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="5" width="18" height="14" rx="3" /><path d="m3 7 9 6 9-6" /></svg></span>
+                <p className="jf-otp-to">Enter the {settings.otp.length}-digit code we sent to <b>{d.account.email}</b> <button className="linkish" type="button" onClick={() => setOtp({ sent: false, code: '', devCode: '', seconds: 0, existing: false })}>Change</button></p>
+              </div>
+              {notice && !/^We sent/.test(notice) && <p className="jf-ok" role="status">{notice}</p>}
               {mockMode && otp.devCode && <p className="jf-test">Test mode: no email is sent. Use code <b>{otp.devCode}</b>.</p>}
               <Field id="f-account-code" label={`${settings.otp.length}-digit code`} error={err('account.code')}>
-                <input id="f-account-code" className="input code" inputMode="numeric" autoComplete="one-time-code" maxLength={settings.otp.length}
+                <input id="f-account-code" className="input code" inputMode="numeric" autoComplete="one-time-code" maxLength={settings.otp.length} placeholder={'•'.repeat(settings.otp.length)} autoFocus
                   value={otp.code} onChange={(e) => setOtp((o) => ({ ...o, code: digits(e.target.value) }))} aria-invalid={!!err('account.code') || undefined}
                   aria-describedby={describedBy('f-account-code', false, err('account.code'))} />
               </Field>
-              <div className="row-actions">
-                <button className="btn btn-primary" type="submit" disabled={busy} data-busy={task === 'verifyCode' || undefined}>{task === 'verifyCode' ? 'Checking…' : 'Verify and continue'}</button>
-                <button className="btn btn-outline" type="button" disabled={otp.seconds > 0 || busy} onClick={() => void sendCode()}>
-                  {otp.seconds > 0 ? `Resend code in ${otp.seconds}s` : 'Resend code'}
-                </button>
-                <button className="linkish" type="button" onClick={() => setOtp({ sent: false, code: '', devCode: '', seconds: 0, existing: false })}>Change email</button>
-              </div>
+              <button className="btn btn-primary btn-block" type="submit" disabled={busy || otp.code.length < settings.otp.length} data-busy={task === 'verifyCode' || undefined}>{task === 'verifyCode' ? 'Checking…' : 'Verify and continue'}</button>
+              <p className="jf-otp-resend">
+                {otp.seconds > 0 ? <span className="muted">Didn’t get it? Resend in 0:{String(otp.seconds).padStart(2, '0')}</span>
+                  : <button className="linkish" type="button" disabled={busy} onClick={() => void sendCode()}>Send a new code</button>}
+              </p>
               <SmartLoader plan={task === 'sendCode' ? LOADER_PLANS.sendCode : LOADER_PLANS.verifyCode} active={task === 'verifyCode' || task === 'sendCode'} expectedMs={800} />
             </form>
           )}
@@ -616,7 +619,7 @@ export function JoinFlow({ settings, form, initialPlan, mockMode = svc.DEMO, con
         <form className="jf-step" aria-labelledby="st-h" onSubmit={nextFromAbout} noValidate>
           <h2 id="st-h" tabIndex={-1} ref={headingRef}>About you</h2>
           {notice && <p className="jf-ok" role="status">{notice}</p>}
-          <p className="jf-lead">{liveForm.intro || 'About 2 minutes.'} Use your legal name. Your home address places you in your zone and Islamic Center.</p>
+          <p className="jf-lead">Your legal name as on your ID, date of birth, mobile and home address – the address places you in your zone and Islamic Center.</p>
           {liveForm.helpers.idScan && (
             <div className="jf-scan" id="f-about-idscan">
               <div>
@@ -632,6 +635,8 @@ export function JoinFlow({ settings, form, initialPlan, mockMode = svc.DEMO, con
               {err('about.idscan') && <p className="field-error">{err('about.idscan')}</p>}
             </div>
           )}
+          <div className="jf-group" role="group" aria-labelledby="g-name">
+          <p className="jf-group-title" id="g-name">Your name</p>
           {settings.identity.nameMustMatchId && <p className="jf-idnote" id="f-about-idnote">{settings.identity.nameNote}</p>}
           <div className="grid-2">
             {(['firstName', 'lastName'] as const).map((k) => (
@@ -646,6 +651,11 @@ export function JoinFlow({ settings, form, initialPlan, mockMode = svc.DEMO, con
             {coreShown(liveForm, 'preferredName') && <Field id="f-about-preferredName" label={coreLabel(liveForm, 'preferredName')} hint={coreHelp(liveForm, 'preferredName')} optional>
               <input id="f-about-preferredName" className="input" autoComplete="nickname" value={d.about.preferredName} onChange={(e) => set('about', { preferredName: e.target.value })} />
             </Field>}
+          </div>
+          </div>
+          <div className="jf-group" role="group" aria-labelledby="g-id">
+          <p className="jf-group-title" id="g-id">Date of birth and ID</p>
+          <div className="grid-2">
             <Field id="f-about-dob" label={coreLabel(liveForm, 'dob')} hint={coreHelp(liveForm, 'dob', `You must be ${settings.minMemberAge} or older.`)} tag={filledTag('about.dob')} error={err('about.dob')}>
               <input id="f-about-dob" className="input" type="date" autoComplete="bday" value={d.about.dob} max={new Date().toISOString().slice(0, 10)}
                 onChange={(e) => { clearFilled('about.dob'); set('about', { dob: e.target.value }); }} onBlur={(e) => blurCheck('about', 'dob', e.target.value)} aria-invalid={!!err('about.dob') || undefined} aria-describedby={describedBy('f-about-dob', true, err('about.dob'))} />
@@ -654,14 +664,20 @@ export function JoinFlow({ settings, form, initialPlan, mockMode = svc.DEMO, con
               <input id="f-about-idNumber" className="input" autoComplete="off" value={d.about.idNumber} onChange={(e) => set('about', { idNumber: e.target.value })}
                 aria-invalid={!!err('about.idNumber') || undefined} aria-describedby={describedBy('f-about-idNumber', true, err('about.idNumber'))} />
             </Field>}
+          </div>
+          </div>
+          <div className="jf-group" role="group" aria-labelledby="g-phone">
+          <p className="jf-group-title" id="g-phone">Mobile</p>
+          <div className="grid-2">
             <Field id="f-about-phone" label={coreLabel(liveForm, 'phone')} hint={phoneNote || (digits(d.about.phone).length === 10 ? '✓ Looks right' : digits(d.about.phone).length ? `Enter all 10 digits (${digits(d.about.phone).length} so far)` : coreHelp(liveForm, 'phone', 'For important account notices.'))} tag={filledTag('about.phone')} error={err('about.phone')}>
               <input id="f-about-phone" className="input" type="tel" autoComplete="tel-national" inputMode="tel" placeholder="(713) 555-0123" value={d.about.phone}
                 onChange={(e) => { setPhoneNote(''); set('about', { phone: formatPhone(e.target.value) }); }} onBlur={(e) => blurCheck('about', 'phone', e.target.value)} aria-invalid={!!err('about.phone') || undefined} aria-describedby={describedBy('f-about-phone', true, err('about.phone'))} />
             </Field>
           </div>
+          </div>
 
-          <fieldset className="jf-fieldset">
-            <legend>{coreLabel(liveForm, 'address')}</legend>
+          <fieldset className="jf-fieldset jf-group">
+            <legend className="jf-group-title">{coreLabel(liveForm, 'address')}</legend>
             {coreHelp(liveForm, 'address') && <p className="hint">{coreHelp(liveForm, 'address')}</p>}
             <Field id="f-about-street" label="Street address" tag={filledTag('about.street')} error={err('about.street')}>
               <div className="addr-wrap">
