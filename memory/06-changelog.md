@@ -107,3 +107,10 @@
   (`pagesChangeProblem` in lib/community/access.ts). Tests: tests/unit/pages-scope.test.ts 2/2 (all unit: 24/24). tsc clean web, admin, BE.
 - O5.1 `/masajid?zip=77036` – find my masjid by ZIP (homeForZip rule) shown as a callout with a link; O9 news items: `image`, `attachments`, `pinned`, `expiresAt`
   (pinned first, expired hidden; the item page shows the image and attachments as documents).
+
+## 2026-10-21 – R6.5 New UI "Editorial Paper" – isgh.org reimagined (first pass)
+- Theme `editorial` in design/tokens/themes.json (warm paper, forest green, saffron; light + dark, contrast gate passed) → default-themes.json + theme.css rebuilt; starter site-config uses it.
+- Home layout `editorial` (`components/home/EditorialHome.tsx`, `styles/home-editorial.css`): photo hero + kicker/headline/lead + five quick-action tiles (isgh.org's buttons, admin-editable),
+  then live sections today / deadline / week / masajid / services / programs / give / latest / election / verse / closing (HomeSchema `editorial` object, new HOME_SECTIONS keys; default layout now editorial).
+- Admin › CMS › Home page: "Editorial (website v2)" layout + "Editorial hero" tab; section labels for the live sections. Test: tests/e2e/home-editorial.spec.ts. tsc clean web + admin; unit 24/24.
+- Research note: memory/research/O5-editorial-ui.md (what remains: browser pass per route, mega-menu groups, footer v2, hero photography).
