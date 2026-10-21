@@ -204,7 +204,11 @@ export function JoinFlow({ settings, form, initialPlan, mockMode = svc.DEMO, con
 
   const showErrors = (errs: Record<string, string>) => {
     setErrors(errs);
-    requestAnimationFrame(() => summaryRef.current?.focus());
+    requestAnimationFrame(() => {   // take the person to the first field that needs fixing, not to the top of the page
+      const first = Object.keys(errs)[0]; const el = first ? document.getElementById(fieldId(first)) : null;
+      const target = el && el.matches('input, select, textarea') ? el : el?.querySelector<HTMLElement>('input, select, textarea') ?? el;
+      if (target) { target.scrollIntoView({ block: 'center', behavior: 'smooth' }); target.focus({ preventScroll: true }); } else summaryRef.current?.focus();
+    });
   };
 
   const set = <K extends keyof Draft>(section: K, patch: Partial<Draft[K]>) =>
@@ -502,13 +506,17 @@ export function JoinFlow({ settings, form, initialPlan, mockMode = svc.DEMO, con
     <div className="jf-card" aria-busy={busy || undefined}>
       <SmartLoader plan={LOADER_PLANS.submit} active={task === 'submit'} variant="overlay" expectedMs={2200} />
       {d.step !== 'done' && (
-        <ol className="stepper" aria-label="Sign-up steps">
-          {STEPS.map((s, i) => (
-            <li key={s.id} className={i < stepIndex ? 'done' : i === stepIndex ? 'current' : ''} aria-current={i === stepIndex ? 'step' : undefined}>
-              <span className="dot" aria-hidden="true">{i < stepIndex ? '✓' : i + 1}</span><span className="lbl">{s.label}</span>
-            </li>
-          ))}
-        </ol>
+        <div className="stepper-wrap">
+          <p className="stepper-text"><b>Step {stepIndex + 1} of {STEPS.length}</b> · {STEPS[stepIndex]?.label}{STEPS[stepIndex + 1] ? <span className="muted"> · next: {STEPS[stepIndex + 1].label}</span> : null}</p>
+          <div className="stepper-bar" aria-hidden="true"><i style={{ width: `${Math.round(((stepIndex + 1) / STEPS.length) * 100)}%` }} /></div>
+          <ol className="stepper" aria-label="Sign-up steps">
+            {STEPS.map((s, i) => (
+              <li key={s.id} className={i < stepIndex ? 'done' : i === stepIndex ? 'current' : ''} aria-current={i === stepIndex ? 'step' : undefined}>
+                <span className="dot" aria-hidden="true">{i < stepIndex ? '✓' : i + 1}</span><span className="lbl">{s.label}</span>
+              </li>
+            ))}
+          </ol>
+        </div>
       )}
 
       {restored && d.step !== 'done' && (

@@ -15,11 +15,13 @@ import { ClassicHero } from './ClassicHero';
 import { HomeBento } from './HomeBento';
 import { Closing, HeartLine, HoustonBand, Journey, LifeMosaic, StatsStrip } from './HomeSections';
 import { PlanCards, StepsBand } from './ClassicSections';
+import { EditorialHome } from './EditorialHome';
 
 export function HomeView({ home, settings, news, giving }: { home: Home; settings: MembershipSettings; news: NewsItem[]; giving?: Giving }) {
   const layout = home.layout ?? 'zones';
   const sections: HomeSection[] = home.sections?.length ? home.sections : DEFAULT_SECTIONS[layout];
   const zoneName = home.zones[3]?.name ?? home.zones[0]?.name ?? '';
+  if (layout === 'editorial') return <EditorialHome home={home} settings={settings} giving={giving} sections={sections} />; // R6.5
 
   const render = (s: HomeSection) => {
     switch (s) {
