@@ -275,3 +275,12 @@
   .step-nav .jf-save { order: 3; width: 100%; text-align: center; }
   .jf-summary { border-radius: 16px; padding: .75rem .9rem; }
 }
+
+/* form first (owner): a one-line title, the card, then the facts and photos */
+.join-form-first .join-top { padding: 1.6rem 0 .2rem; }
+.join-form-first .join-top h1 { font-size: clamp(1.9rem, 4vw, 2.6rem); font-variation-settings: "wdth" 82; letter-spacing: -0.02em; margin: 0; }
+.join-form-first .join-top .join-lead { margin-top: .35rem; font-size: 1rem; }
+.join-form-first .join-top .join-lead a { color: var(--primary); font-weight: 700; }
+.join-form-first .join-after { margin-top: 2.5rem; padding: 2.5rem 0 1rem; background: linear-gradient(180deg, var(--background), var(--muted)); }
+.join-form-first .join-after .sec-title { font-size: clamp(1.6rem, 3vw, 2.2rem); }
+.join-form-first .join-after .join-lead { margin-top: .6rem; }

@@ -13,18 +13,27 @@ type Props = { settings: MembershipSettings; form?: JoinForm; initialPlan?: stri
 export function JoinPageView({ settings, form = defaultJoinForm, initialPlan, mockMode, images = [], giving, config, org = { name: 'our organization', shortName: 'the organization' } }: Props) {
   const verse = giving?.verses.find((v) => v.ref === '3:92') ?? giving?.verses[0];
   return (
-    <div className="join-page">
-      <section className="join-hero">
+    <div className="join-page join-form-first">
+      {/* owner (2026-10-21): the form comes first; the facts, photos and reasons follow it */}
+      <section className="join-top">
+        <div className="wrap">
+          <h1>Become a member</h1>
+          <p className="join-lead">Join {org.name} in about three minutes. Already a member? <Link href="/sign-in">Sign in</Link> or <Link href="/membership/renew">renew</Link>.</p>
+        </div>
+      </section>
+      <div className="wrap">
+        <JoinFlow settings={settings} form={form} initialPlan={initialPlan} mockMode={mockMode} config={config} org={org} />
+      </div>
+      <section className="join-hero join-after" aria-labelledby="ja-h">
         <div className="wrap join-hero-grid">
           <div>
-            <h1>Become a member</h1>
-            <p className="join-lead">Join {org.name} in about five minutes. Your membership supports {settings.serviceArea.label}&apos;s Islamic Centers and gives you a voice in {org.shortName} elections.</p>
+            <h2 className="sec-title" id="ja-h">What your membership is</h2>
+            <p className="join-lead">Your membership supports {settings.serviceArea.label}&apos;s Islamic Centers and gives you a voice in {org.shortName} elections.</p>
             <ul className="join-facts">
               <li>Membership runs January 1 to December 31, {settings.year}.</li>
               <li>Pay by June 30 to vote in that year&apos;s elections.</li>
               <li>{config?.payments.check ? 'Card, Apple Pay, Google Pay or check.' : 'Card, Apple Pay or Google Pay.'} Receipt by email.</li>
             </ul>
-            <p className="join-already">Already a member? <Link href="/sign-in">Sign in</Link> or <Link href="/membership/renew">renew</Link>.</p>
           </div>
           {images.length > 0 && (
             <div className="join-photos" aria-hidden={false}>
@@ -33,9 +42,6 @@ export function JoinPageView({ settings, form = defaultJoinForm, initialPlan, mo
           )}
         </div>
       </section>
-      <div className="wrap">
-        <JoinFlow settings={settings} form={form} initialPlan={initialPlan} mockMode={mockMode} config={config} org={org} />
-      </div>
       {giving && (
         <section className="join-why" aria-labelledby="jw-h">
           <div className="wrap join-why-grid">
