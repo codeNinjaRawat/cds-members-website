@@ -129,6 +129,7 @@ export function JoinFlow({ settings, form, initialPlan, mockMode = svc.DEMO, con
   const [code, setCode] = useState('');
   const [applied, setApplied] = useState<{ code: string; cents: number; message: string } | null>(null);
   const headingRef = useRef<HTMLHeadingElement>(null);
+  const cardRef = useRef<HTMLDivElement>(null);
   const summaryRef = useRef<HTMLDivElement>(null);
 
   /* autosave in this browser tab (sessionStorage – cleared when the tab closes; cross-device drafts come from BE later) */
@@ -196,10 +197,21 @@ export function JoinFlow({ settings, form, initialPlan, mockMode = svc.DEMO, con
     return () => clearTimeout(t);
   }, [otp.seconds]);
 
+  /** After a step change: the form card sits just under the header, in one instant move – and no move at all when it is
+   *  already there. (Scrolling to the page top and then focusing the heading made the page run up and down.) */
+  const settleView = () => {
+    const card = cardRef.current;
+    if (card) {
+      const header = document.querySelector<HTMLElement>('header'); const offset = (header?.getBoundingClientRect().height ?? 72) + 12;
+      const top = Math.max(0, card.getBoundingClientRect().top + window.scrollY - offset);
+      if (Math.abs(window.scrollY - top) > 24) window.scrollTo({ top, behavior: 'auto' });
+    }
+    headingRef.current?.focus({ preventScroll: true });
+  };
   const goTo = useCallback((step: StepId) => {
     setErrors({}); setNotice('');
     setD((x) => ({ ...x, step }));
-    requestAnimationFrame(() => { headingRef.current?.focus(); window.scrollTo({ top: 0, behavior: 'smooth' }); });
+    requestAnimationFrame(settleView);
   }, []);
 
   const showErrors = (errs: Record<string, string>) => {
@@ -207,7 +219,7 @@ export function JoinFlow({ settings, form, initialPlan, mockMode = svc.DEMO, con
     requestAnimationFrame(() => {   // take the person to the first field that needs fixing, not to the top of the page
       const first = Object.keys(errs)[0]; const el = first ? document.getElementById(fieldId(first)) : null;
       const target = el && el.matches('input, select, textarea') ? el : el?.querySelector<HTMLElement>('input, select, textarea') ?? el;
-      if (target) { target.scrollIntoView({ block: 'center', behavior: 'smooth' }); target.focus({ preventScroll: true }); } else summaryRef.current?.focus();
+      if (target) { target.scrollIntoView({ block: 'center', behavior: 'auto' }); target.focus({ preventScroll: true }); } else summaryRef.current?.focus();
     });
   };
 
@@ -282,7 +294,7 @@ export function JoinFlow({ settings, form, initialPlan, mockMode = svc.DEMO, con
       if (j.saved) {
         const saved = j.saved;
         setD((x) => mergeSaved(x, saved.data, d.account.email, saved.step)); setRestored(true);
-        requestAnimationFrame(() => { headingRef.current?.focus(); window.scrollTo({ top: 0, behavior: 'smooth' }); });
+        requestAnimationFrame(settleView);
         setNotice('Welcome back – we kept everything you filled in before. Pick up where you stopped.');
         return;
       }
@@ -475,7 +487,7 @@ export function JoinFlow({ settings, form, initialPlan, mockMode = svc.DEMO, con
       about: { ...x.about, firstName: x.about.firstName || p.firstName, lastName: x.about.lastName || p.lastName } }));
     setNotice(`Signed in with Google as ${p.email}.`);
     setErrors({}); setD((x) => ({ ...x, step: 'plan' }));
-    requestAnimationFrame(() => { headingRef.current?.focus(); window.scrollTo({ top: 0, behavior: 'smooth' }); });
+    requestAnimationFrame(settleView);
   };
 
   /** Validate one field when the person leaves it (friendlier than waiting for Continue). */
@@ -503,7 +515,7 @@ export function JoinFlow({ settings, form, initialPlan, mockMode = svc.DEMO, con
   /* ---------------- render ---------------- */
   return (
     <div className={`jf-shell${d.step === 'done' ? ' is-done' : ''}`}>
-    <div className="jf-card" aria-busy={busy || undefined}>
+    <div className="jf-card" aria-busy={busy || undefined} ref={cardRef}>
       <SmartLoader plan={LOADER_PLANS.submit} active={task === 'submit'} variant="overlay" expectedMs={2200} />
       {d.step !== 'done' && (
         <div className="stepper-wrap">
