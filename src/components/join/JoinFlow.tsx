@@ -635,6 +635,15 @@ export function JoinFlow({ settings, form, initialPlan, mockMode = svc.DEMO, con
               {err('about.idscan') && <p className="field-error">{err('about.idscan')}</p>}
             </div>
           )}
+          <div className="jf-group" role="group" aria-labelledby="g-phone">
+          <p className="jf-group-title" id="g-phone">Mobile</p>
+          <div className="grid-2">
+            <Field id="f-about-phone" label={coreLabel(liveForm, 'phone')} hint={phoneNote || (digits(d.about.phone).length === 10 ? '✓ Looks right' : digits(d.about.phone).length ? `Enter all 10 digits (${digits(d.about.phone).length} so far)` : coreHelp(liveForm, 'phone', 'For important account notices.'))} tag={filledTag('about.phone')} error={err('about.phone')}>
+              <input id="f-about-phone" className="input" type="tel" autoComplete="tel-national" inputMode="tel" placeholder="(713) 555-0123" value={d.about.phone}
+                onChange={(e) => { setPhoneNote(''); set('about', { phone: formatPhone(e.target.value) }); }} onBlur={(e) => blurCheck('about', 'phone', e.target.value)} aria-invalid={!!err('about.phone') || undefined} aria-describedby={describedBy('f-about-phone', true, err('about.phone'))} />
+            </Field>
+          </div>
+          </div>
           <div className="jf-group" role="group" aria-labelledby="g-name">
           <p className="jf-group-title" id="g-name">Your name</p>
           {settings.identity.nameMustMatchId && <p className="jf-idnote" id="f-about-idnote">{settings.identity.nameNote}</p>}
@@ -664,15 +673,6 @@ export function JoinFlow({ settings, form, initialPlan, mockMode = svc.DEMO, con
               <input id="f-about-idNumber" className="input" autoComplete="off" value={d.about.idNumber} onChange={(e) => set('about', { idNumber: e.target.value })}
                 aria-invalid={!!err('about.idNumber') || undefined} aria-describedby={describedBy('f-about-idNumber', true, err('about.idNumber'))} />
             </Field>}
-          </div>
-          </div>
-          <div className="jf-group" role="group" aria-labelledby="g-phone">
-          <p className="jf-group-title" id="g-phone">Mobile</p>
-          <div className="grid-2">
-            <Field id="f-about-phone" label={coreLabel(liveForm, 'phone')} hint={phoneNote || (digits(d.about.phone).length === 10 ? '✓ Looks right' : digits(d.about.phone).length ? `Enter all 10 digits (${digits(d.about.phone).length} so far)` : coreHelp(liveForm, 'phone', 'For important account notices.'))} tag={filledTag('about.phone')} error={err('about.phone')}>
-              <input id="f-about-phone" className="input" type="tel" autoComplete="tel-national" inputMode="tel" placeholder="(713) 555-0123" value={d.about.phone}
-                onChange={(e) => { setPhoneNote(''); set('about', { phone: formatPhone(e.target.value) }); }} onBlur={(e) => blurCheck('about', 'phone', e.target.value)} aria-invalid={!!err('about.phone') || undefined} aria-describedby={describedBy('f-about-phone', true, err('about.phone'))} />
-            </Field>
           </div>
           </div>
 
